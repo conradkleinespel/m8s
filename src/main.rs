@@ -22,6 +22,9 @@ struct GlobalConfigArgs {
     /// Show verbose logs
     #[arg(short, long)]
     verbose: bool,
+    /// Path to the deployment file in YAML format
+    #[arg(short, long)]
+    file: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -30,8 +33,6 @@ enum Command {
     Up {
         #[clap(flatten)]
         global_options: GlobalConfigArgs,
-        /// Path to the deployment file in YAML format
-        deployment_file_path: String,
         #[arg(short = 'C', long)]
         directory: Option<String>,
         /// Path to the kubeconfig file to use for CLI requests
@@ -55,7 +56,6 @@ fn main() {
     let result = match args.command {
         Command::Up {
             global_options,
-            deployment_file_path,
             directory,
             kubeconfig,
             skip_helm_repositories,
@@ -63,7 +63,6 @@ fn main() {
             dry_run,
         } => execute_subcommand(
             global_options,
-            deployment_file_path,
             directory,
             kubeconfig.as_ref(),
             skip_helm_repositories,
@@ -80,7 +79,6 @@ fn main() {
 
 fn execute_subcommand(
     global_options: GlobalConfigArgs,
-    deployment_file_path: String,
     directory: Option<String>,
     kubeconfig: Option<&String>,
     skip_helm_repositories: bool,
@@ -92,6 +90,8 @@ fn execute_subcommand(
     if let Some(directory) = directory {
         env::set_current_dir(directory)?;
     }
+
+    let deployment_file_path = global_options.file.unwrap_or("m8s.yaml".to_string());
 
     let config = parse_deployment_file(deployment_file_path.as_str())?;
     let root = build_resources_root_from_config(deployment_file_path.as_str(), &config)?;
