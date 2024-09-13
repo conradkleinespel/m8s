@@ -33,6 +33,7 @@ enum Command {
     Up {
         #[clap(flatten)]
         global_options: GlobalConfigArgs,
+        /// Change to DIRECTORY before doing anything
         #[arg(short = 'C', long)]
         directory: Option<String>,
         /// Path to the kubeconfig file to use for CLI requests
