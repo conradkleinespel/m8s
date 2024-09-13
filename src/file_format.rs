@@ -6,7 +6,7 @@ use std::io;
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Config {
-    pub(crate) root: String,
+    pub(crate) root: Option<String>,
     pub(crate) helm_repositories: Vec<HelmRepository>,
     pub(crate) units: IndexMap<String, UnitWithDependencies>,
 }

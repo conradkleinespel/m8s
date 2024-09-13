@@ -62,7 +62,7 @@ fn main() {
             .parent()
             .unwrap(),
     );
-    root.push(config.root);
+    root.push(config.root.unwrap_or(".".to_string()));
 
     debug!(
         "Root is {}",
