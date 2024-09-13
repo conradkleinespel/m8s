@@ -2,38 +2,62 @@ use crate::file_format::{HelmLocal, HelmRemote, Manifest, Shell, Unit, UnitWithD
 use indexmap::IndexMap;
 use log::{debug, info};
 use serde::Deserialize;
+use std::collections::HashSet;
 use std::io;
 use std::path::{Path, PathBuf};
 
 pub fn run_units(
     root: &Path,
-    units: IndexMap<String, UnitWithDependencies>,
+    mut units: IndexMap<String, UnitWithDependencies>,
+    units_filter_without_dependencies: Vec<String>,
+    skip_dependencies: bool,
     kubeconfig: Option<&String>,
     dry_run: bool,
 ) -> io::Result<()> {
     info!("Running units...");
+
+    debug!(
+        "Unit filter without dependencies: {:?}",
+        units_filter_without_dependencies
+    );
+    if units_filter_without_dependencies.len() > 0 {
+        units = get_filtered_units(
+            &units,
+            &units_filter_without_dependencies,
+            skip_dependencies,
+            &mut HashSet::new(),
+        );
+
+        debug!(
+            "Unit filter with dependencies: {:?}",
+            units.keys().map(|i| i.to_string()).collect::<Vec<String>>()
+        );
+    }
+
+    // return Ok(());
 
     let mut unit_keys_done: Vec<String> = Vec::new();
     while has_pending_units(&units, unit_keys_done.as_slice()) {
         debug!("Already done units: {:?}", unit_keys_done);
 
         for (unit_key, UnitWithDependencies { depends_on, unit }) in units.iter() {
-            let depends_on: Vec<String> = depends_on.clone().unwrap_or(Vec::new());
-
-            let missing_dependencies: Vec<String> = depends_on
-                .iter()
-                .filter(|item| !unit_keys_done.contains(item))
-                .map(|item| item.to_string())
-                .collect();
-            if missing_dependencies.len() > 0 {
-                debug!(
-                    "Skipping unit \"{}\", waiting for dependencies: {:?}",
-                    unit_key, missing_dependencies
-                );
-                continue;
+            if !skip_dependencies {
+                let depends_on: Vec<String> = depends_on.clone().unwrap_or(Vec::new());
+                let missing_dependencies: Vec<String> = depends_on
+                    .iter()
+                    .filter(|item| !unit_keys_done.contains(item))
+                    .map(|item| item.to_string())
+                    .collect();
+                if missing_dependencies.len() > 0 {
+                    debug!(
+                        "Skipping unit \"{}\", waiting for dependencies: {:?}",
+                        unit_key, missing_dependencies
+                    );
+                    continue;
+                }
             }
 
-            debug!("Running unit {:?}", unit);
+            debug!("Running unit {} = {:?}", unit_key, unit);
             match unit {
                 Unit::Noop { noop: _ } => {}
                 Unit::Shell { shell } => {
@@ -57,6 +81,120 @@ pub fn run_units(
     Ok(())
 }
 
+fn get_filtered_units(
+    units: &IndexMap<String, UnitWithDependencies>,
+    units_filter: &Vec<String>,
+    skip_dependencies: bool,
+    visited: &mut HashSet<String>,
+) -> IndexMap<String, UnitWithDependencies> {
+    let mut dependencies_by_unit_key = IndexMap::new();
+    for (unit_key, unit) in units {
+        dependencies_by_unit_key.insert(
+            unit_key.clone(),
+            unit.depends_on.clone().unwrap_or(Vec::new()),
+        );
+    }
+
+    let mut filtered_units = IndexMap::new();
+
+    let mut stack = units_filter.clone();
+    while let Some(next_unit_to_visit) = stack.pop() {
+        if visited.contains(&next_unit_to_visit) {
+            continue;
+        }
+        filtered_units.insert(
+            next_unit_to_visit.to_string(),
+            units.get(&next_unit_to_visit).unwrap().clone(),
+        );
+
+        if skip_dependencies {
+            continue;
+        }
+
+        for neighbor in dependencies_by_unit_key
+            .get(&next_unit_to_visit.to_string())
+            .unwrap()
+        {
+            stack.push(neighbor.to_string());
+        }
+    }
+
+    filtered_units
+}
+
+#[test]
+fn test_get_filtered_units() {
+    let mut units = IndexMap::new();
+    units.insert(
+        "a".to_string(),
+        UnitWithDependencies {
+            unit: Unit::Noop {
+                noop: "".to_string(),
+            },
+            depends_on: None,
+        },
+    );
+    units.insert(
+        "b".to_string(),
+        UnitWithDependencies {
+            unit: Unit::Noop {
+                noop: "".to_string(),
+            },
+            depends_on: Some(vec!["a".to_string()]),
+        },
+    );
+    units.insert(
+        "c".to_string(),
+        UnitWithDependencies {
+            unit: Unit::Noop {
+                noop: "".to_string(),
+            },
+            depends_on: None,
+        },
+    );
+
+    let mut units_expected_with_dependencies = IndexMap::new();
+    units_expected_with_dependencies.insert(
+        "b".to_string(),
+        UnitWithDependencies {
+            unit: Unit::Noop {
+                noop: "".to_string(),
+            },
+            depends_on: Some(vec!["a".to_string()]),
+        },
+    );
+    units_expected_with_dependencies.insert(
+        "a".to_string(),
+        UnitWithDependencies {
+            unit: Unit::Noop {
+                noop: "".to_string(),
+            },
+            depends_on: None,
+        },
+    );
+
+    let mut units_expected_without_dependencies = IndexMap::new();
+    units_expected_without_dependencies.insert(
+        "b".to_string(),
+        UnitWithDependencies {
+            unit: Unit::Noop {
+                noop: "".to_string(),
+            },
+            depends_on: Some(vec!["a".to_string()]),
+        },
+    );
+
+    assert_eq!(
+        get_filtered_units(&units, &vec!["b".to_string()], false, &mut HashSet::new()),
+        units_expected_with_dependencies
+    );
+
+    assert_eq!(
+        get_filtered_units(&units, &vec!["b".to_string()], true, &mut HashSet::new()),
+        units_expected_without_dependencies
+    );
+}
+
 fn has_pending_units(
     units: &IndexMap<String, UnitWithDependencies>,
     unit_keys_done: &[String],
@@ -68,7 +206,7 @@ fn has_pending_units(
     next_unit_not_yet_ran.is_some()
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq)]
 struct HelmRelease {
     name: String,
     namespace: String,
@@ -124,7 +262,7 @@ fn run_unit_helm_local(
     let mut args = Vec::<String>::new();
     args.push(
         if already_installed {
-            "upgrade"
+            "upgrade" // TODO: only upgrade when values/version/etc have changed
         } else {
             "install"
         }
@@ -171,7 +309,7 @@ fn run_unit_helm_remote(
     let mut args = Vec::<String>::new();
     args.push(
         if already_installed {
-            "upgrade"
+            "upgrade" // TODO: only upgrade when values/version/etc have changed
         } else {
             "install"
         }

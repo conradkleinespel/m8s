@@ -31,6 +31,7 @@ struct GlobalConfigArgs {
 enum Command {
     /// Deploys resources using the current k8s config context
     Up {
+        units: Vec<String>,
         #[clap(flatten)]
         global_options: GlobalConfigArgs,
         /// Change to DIRECTORY before doing anything
@@ -45,6 +46,9 @@ enum Command {
         /// Do not update the Kubernetes resources (aka `kubectl apply`, `helm install`, etc)
         #[arg(long)]
         skip_units: bool,
+        /// Do not run dependencies, only run the units passed as arguments (requires UNITS)
+        #[arg(long)]
+        skip_dependencies: bool,
         /// Show logs but do not actually apply changes
         #[arg(long)]
         dry_run: bool,
@@ -56,18 +60,22 @@ fn main() {
 
     let result = match args.command {
         Command::Up {
+            units,
             global_options,
             directory,
             kubeconfig,
             skip_helm_repositories,
             skip_units,
+            skip_dependencies,
             dry_run,
         } => execute_subcommand(
+            units,
             global_options,
             directory,
             kubeconfig.as_ref(),
             skip_helm_repositories,
             skip_units,
+            skip_dependencies,
             dry_run,
         ),
     };
@@ -79,14 +87,23 @@ fn main() {
 }
 
 fn execute_subcommand(
+    units_filter_without_dependencies: Vec<String>,
     global_options: GlobalConfigArgs,
     directory: Option<String>,
     kubeconfig: Option<&String>,
     skip_helm_repositories: bool,
     skip_units: bool,
+    skip_dependencies: bool,
     dry_run: bool,
 ) -> io::Result<()> {
     init_logging(global_options.verbose);
+
+    if skip_dependencies && units_filter_without_dependencies.len() == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "option --skip-dependencies only works when you passe UNITS too",
+        ));
+    }
 
     if let Some(directory) = directory {
         env::set_current_dir(directory)?;
@@ -111,8 +128,15 @@ fn execute_subcommand(
     }
 
     if !skip_units {
-        units::run_units(root.as_path(), config.units, kubeconfig, dry_run)
-            .map_err(|err| io::Error::new(err.kind(), format!("Running units failed: {}", err)))?;
+        units::run_units(
+            root.as_path(),
+            config.units,
+            units_filter_without_dependencies,
+            skip_dependencies,
+            kubeconfig,
+            dry_run,
+        )
+        .map_err(|err| io::Error::new(err.kind(), format!("Running units failed: {}", err)))?;
     }
 
     Ok(())

@@ -17,14 +17,14 @@ pub(crate) struct HelmRepository {
     pub(crate) url: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub(crate) struct UnitWithDependencies {
     #[serde(flatten)]
     pub(crate) unit: Unit,
     pub(crate) depends_on: Option<Vec<String>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
 pub(crate) enum Unit {
     #[serde(rename_all = "camelCase")]
@@ -38,23 +38,23 @@ pub(crate) enum Unit {
     #[serde(rename_all = "camelCase")]
     Noop {
         #[allow(dead_code)]
-        noop: Option<String>,
+        noop: String,
     },
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Shell {
     pub(crate) input: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Manifest {
     pub(crate) path: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct HelmRemote {
     pub(crate) name: String,
@@ -64,7 +64,7 @@ pub(crate) struct HelmRemote {
     pub(crate) values: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct HelmLocal {
     pub(crate) name: String,
@@ -104,10 +104,10 @@ fn analyse_cycles(
 
 pub fn check_dependency_cycles(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
     let mut dependencies_by_unit_key = IndexMap::new();
-    for (service_name, service) in units {
+    for (unit_key, unit) in units {
         dependencies_by_unit_key.insert(
-            service_name.clone(),
-            service.depends_on.clone().unwrap_or(Vec::new()),
+            unit_key.clone(),
+            unit.depends_on.clone().unwrap_or(Vec::new()),
         );
     }
 
