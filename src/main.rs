@@ -8,7 +8,7 @@ use file_format::Config;
 use log::{debug, error, info};
 use serde_yaml;
 use std::path::{Path, PathBuf};
-use std::{fs, io, process};
+use std::{env, fs, io, process};
 
 #[derive(Parser)]
 #[command(about = "What if helm, kubectl and others were roommates", long_about = None)]
@@ -32,6 +32,11 @@ enum Command {
         global_options: GlobalConfigArgs,
         /// Path to the deployment file in YAML format
         deployment_file_path: String,
+        #[arg(short = 'C', long)]
+        directory: Option<String>,
+        /// Path to the kubeconfig file to use for CLI requests
+        #[arg(long)]
+        kubeconfig: Option<String>,
         /// Do not add or update Helm repositories (aka `helm repo add`)
         #[arg(long)]
         skip_helm_repositories: bool,
@@ -51,12 +56,16 @@ fn main() {
         Command::Up {
             global_options,
             deployment_file_path,
+            directory,
+            kubeconfig,
             skip_helm_repositories,
             skip_units,
             dry_run,
         } => execute_subcommand(
             global_options,
             deployment_file_path,
+            directory,
+            kubeconfig.as_ref(),
             skip_helm_repositories,
             skip_units,
             dry_run,
@@ -72,11 +81,17 @@ fn main() {
 fn execute_subcommand(
     global_options: GlobalConfigArgs,
     deployment_file_path: String,
+    directory: Option<String>,
+    kubeconfig: Option<&String>,
     skip_helm_repositories: bool,
     skip_units: bool,
     dry_run: bool,
 ) -> io::Result<()> {
     init_logging(global_options.verbose);
+
+    if let Some(directory) = directory {
+        env::set_current_dir(directory)?;
+    }
 
     let config = parse_deployment_file(deployment_file_path.as_str())?;
     let root = build_resources_root_from_config(deployment_file_path.as_str(), &config)?;
@@ -95,7 +110,7 @@ fn execute_subcommand(
     }
 
     if !skip_units {
-        units::run_units(root.as_path(), config.units, dry_run)
+        units::run_units(root.as_path(), config.units, kubeconfig, dry_run)
             .map_err(|err| io::Error::new(err.kind(), format!("Running units failed: {}", err)))?;
     }
 
@@ -149,9 +164,9 @@ fn parse_deployment_file(deployment_file_path: &str) -> io::Result<Config> {
 
 fn init_logging(verbose: bool) {
     if verbose {
-        std::env::set_var("RUST_LOG", "debug");
+        env::set_var("RUST_LOG", "debug");
     } else {
-        std::env::set_var("RUST_LOG", "info");
+        env::set_var("RUST_LOG", "info");
     }
     env_logger::init();
 }

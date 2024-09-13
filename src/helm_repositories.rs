@@ -17,11 +17,13 @@ pub fn handle_helm_repositories(
                 repository.name.as_str(),
                 repository.url.as_str(),
             ],
+            None,
             dry_run,
         )?;
         crate::utils::run_command_with_piped_stdio(
             "helm",
             &["repo", "update", repository.name.as_str()],
+            None,
             dry_run,
         )?;
 

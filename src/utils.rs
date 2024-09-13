@@ -3,7 +3,12 @@ use std::io;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 
-pub fn run_command_with_piped_stdio(program: &str, args: &[&str], dry_run: bool) -> io::Result<()> {
+pub fn run_command_with_piped_stdio(
+    program: &str,
+    args: &[&str],
+    kubeconfig: Option<&String>,
+    dry_run: bool,
+) -> io::Result<()> {
     debug!("Running command {} {:?}", program, args);
 
     if dry_run {
@@ -15,6 +20,10 @@ pub fn run_command_with_piped_stdio(program: &str, args: &[&str], dry_run: bool)
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+
+    if let Some(c) = kubeconfig {
+        command.env("KUBECONFIG", c.to_string());
+    }
 
     let mut child = command.spawn().expect("Failed to execute command");
 

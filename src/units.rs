@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 pub fn run_units(
     root: &Path,
     units: IndexMap<String, UnitWithDependencies>,
+    kubeconfig: Option<&String>,
     dry_run: bool,
 ) -> io::Result<()> {
     info!("Running units...");
@@ -36,16 +37,16 @@ pub fn run_units(
             match unit {
                 Unit::Noop { noop: _ } => {}
                 Unit::Shell { shell } => {
-                    run_unit_shell(dry_run, &shell)?;
+                    run_unit_shell(dry_run, &shell, kubeconfig)?;
                 }
                 Unit::Manifest { manifest } => {
-                    run_unit_manifest(root, dry_run, manifest)?;
+                    run_unit_manifest(root, dry_run, manifest, kubeconfig)?;
                 }
                 Unit::HelmRemote { helm_remote } => {
-                    run_unit_helm_remote(root, dry_run, helm_remote)?;
+                    run_unit_helm_remote(root, dry_run, helm_remote, kubeconfig)?;
                 }
                 Unit::HelmLocal { helm_local } => {
-                    run_unit_helm_local(root, dry_run, helm_local)?;
+                    run_unit_helm_local(root, dry_run, helm_local, kubeconfig)?;
                 }
             }
 
@@ -73,14 +74,24 @@ struct HelmRelease {
     namespace: String,
 }
 
-fn helm_release_exists(name: &str, namespace: &str) -> io::Result<bool> {
-    let output = std::process::Command::new("helm")
+fn helm_release_exists(
+    name: &str,
+    namespace: &str,
+    kubeconfig: Option<&String>,
+) -> io::Result<bool> {
+    let mut command = std::process::Command::new("helm");
+    command
         .arg("list")
         .arg("--namespace")
         .arg(namespace)
         .arg("--output")
-        .arg("yaml")
-        .output()?;
+        .arg("yaml");
+
+    if let Some(c) = kubeconfig {
+        command.env("KUBECONFIG", c.to_string());
+    }
+
+    let output = command.output()?;
 
     let helm_releases: Vec<HelmRelease> = serde_yaml::from_str(
         String::from_utf8_lossy(output.stdout.as_slice()).as_ref(),
@@ -102,9 +113,13 @@ fn run_unit_helm_local(
     root: &Path,
     dry_run: bool,
     helm_local: &HelmLocal,
+    kubeconfig: Option<&String>,
 ) -> Result<(), io::Error> {
-    let already_installed =
-        helm_release_exists(helm_local.name.as_str(), helm_local.namespace.as_str())?;
+    let already_installed = helm_release_exists(
+        helm_local.name.as_str(),
+        helm_local.namespace.as_str(),
+        kubeconfig,
+    )?;
 
     let mut args = Vec::<String>::new();
     args.push(
@@ -135,6 +150,7 @@ fn run_unit_helm_local(
             .map(|s| s.as_str())
             .collect::<Vec<&str>>()
             .as_slice(),
+        kubeconfig,
         dry_run,
     )?;
     Ok(())
@@ -144,9 +160,13 @@ fn run_unit_helm_remote(
     root: &Path,
     dry_run: bool,
     helm_remote: &HelmRemote,
+    kubeconfig: Option<&String>,
 ) -> Result<(), io::Error> {
-    let already_installed =
-        helm_release_exists(helm_remote.name.as_str(), helm_remote.namespace.as_str())?;
+    let already_installed = helm_release_exists(
+        helm_remote.name.as_str(),
+        helm_remote.namespace.as_str(),
+        kubeconfig,
+    )?;
 
     let mut args = Vec::<String>::new();
     args.push(
@@ -179,24 +199,40 @@ fn run_unit_helm_remote(
             .map(|s| s.as_str())
             .collect::<Vec<&str>>()
             .as_slice(),
+        kubeconfig,
         dry_run,
     )?;
     Ok(())
 }
 
-fn run_unit_manifest(root: &Path, dry_run: bool, manifest: &Manifest) -> Result<(), io::Error> {
+fn run_unit_manifest(
+    root: &Path,
+    dry_run: bool,
+    manifest: &Manifest,
+    kubeconfig: Option<&String>,
+) -> Result<(), io::Error> {
     let mut path = PathBuf::new();
     path.push(root);
     path.push(manifest.path.as_str());
     crate::utils::run_command_with_piped_stdio(
         "kubectl",
         &["apply", "-f", path.to_str().unwrap()],
+        kubeconfig,
         dry_run,
     )?;
     Ok(())
 }
 
-pub fn run_unit_shell(dry_run: bool, shell: &&Shell) -> Result<(), io::Error> {
-    crate::utils::run_command_with_piped_stdio("bash", &["-c", shell.input.as_str()], dry_run)?;
+pub fn run_unit_shell(
+    dry_run: bool,
+    shell: &&Shell,
+    kubeconfig: Option<&String>,
+) -> Result<(), io::Error> {
+    crate::utils::run_command_with_piped_stdio(
+        "bash",
+        &["-c", shell.input.as_str()],
+        kubeconfig,
+        dry_run,
+    )?;
     Ok(())
 }
