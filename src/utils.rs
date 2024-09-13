@@ -10,12 +10,13 @@ pub fn run_command_with_piped_stdio(program: &str, args: &[&str], dry_run: bool)
         return Ok(());
     }
 
-    let mut child = Command::new(program)
+    let mut command = Command::new(program);
+    command
         .args(args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Failed to execute command");
+        .stderr(Stdio::piped());
+
+    let mut child = command.spawn().expect("Failed to execute command");
 
     let stdout = child.stdout.take().expect("Failed to capture stdout");
     let reader = BufReader::new(stdout);

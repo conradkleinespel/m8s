@@ -3,94 +3,155 @@ mod helm_repositories;
 mod units;
 mod utils;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use file_format::Config;
 use log::{debug, error, info};
 use serde_yaml;
-use std::fs;
 use std::path::{Path, PathBuf};
+use std::{fs, io, process};
 
 #[derive(Parser)]
 #[command(about = "What if helm, kubectl and others were roommates", long_about = None)]
 struct Cli {
-    /// Path to the deployment file in YAML format
-    deployment_file_path: String,
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Debug, Default, Clone, clap::Args)]
+struct GlobalConfigArgs {
+    /// Show verbose logs
     #[arg(short, long)]
     verbose: bool,
-    #[arg(long)]
-    skip_helm_repositories: bool,
-    #[arg(long)]
-    skip_units: bool,
-    #[arg(long)]
-    upgrade: bool,
-    #[arg(long)]
-    dry_run: bool,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Deploys resources using the current k8s config context
+    Up {
+        #[clap(flatten)]
+        global_options: GlobalConfigArgs,
+        /// Path to the deployment file in YAML format
+        deployment_file_path: String,
+        /// Do not add or update Helm repositories (aka `helm repo add`)
+        #[arg(long)]
+        skip_helm_repositories: bool,
+        /// Do not update the Kubernetes resources (aka `kubectl apply`, `helm install`, etc)
+        #[arg(long)]
+        skip_units: bool,
+        /// Show logs but do not actually apply changes
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 fn main() {
     let args = Cli::parse();
 
-    if args.verbose {
-        std::env::set_var("RUST_LOG", "debug");
-    } else {
-        std::env::set_var("RUST_LOG", "info");
+    let result = match args.command {
+        Command::Up {
+            global_options,
+            deployment_file_path,
+            skip_helm_repositories,
+            skip_units,
+            dry_run,
+        } => execute_subcommand(
+            global_options,
+            deployment_file_path,
+            skip_helm_repositories,
+            skip_units,
+            dry_run,
+        ),
+    };
+
+    if let Err(err) = result {
+        error!("{}", err);
+        process::exit(1);
     }
-    env_logger::init();
+}
 
-    info!("Deploying from {}...", args.deployment_file_path);
+fn execute_subcommand(
+    global_options: GlobalConfigArgs,
+    deployment_file_path: String,
+    skip_helm_repositories: bool,
+    skip_units: bool,
+    dry_run: bool,
+) -> io::Result<()> {
+    init_logging(global_options.verbose);
 
-    let yaml_data = match fs::read_to_string(args.deployment_file_path.as_str()) {
+    let config = parse_deployment_file(deployment_file_path.as_str())?;
+    let root = build_resources_root_from_config(deployment_file_path.as_str(), &config)?;
+
+    file_format::check_invalid_unit_keys(&config.units)?;
+    file_format::check_dependency_cycles(&config.units)?;
+
+    if !skip_helm_repositories {
+        helm_repositories::handle_helm_repositories(config.helm_repositories.as_slice(), dry_run)
+            .map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("Adding helm repositories failed: {}", err),
+            )
+        })?;
+    }
+
+    if !skip_units {
+        units::run_units(root.as_path(), config.units, dry_run)
+            .map_err(|err| io::Error::new(err.kind(), format!("Running units failed: {}", err)))?;
+    }
+
+    Ok(())
+}
+
+fn build_resources_root_from_config(
+    deployment_file_path: &str,
+    config: &Config,
+) -> io::Result<PathBuf> {
+    debug!("Building resources root from config: {:?}", config.root);
+    let mut root = PathBuf::new();
+    root.push(Path::new(deployment_file_path).parent().unwrap());
+    // Need at least "." to prevent the root being empty, see Path::parent()
+    root.push(config.root.clone().unwrap_or(".".to_string()));
+
+    let absolute_path = fs::canonicalize(root.as_path())?
+        .to_string_lossy()
+        .to_string();
+    debug!("Root is {}", absolute_path);
+
+    Ok(root)
+}
+
+fn parse_deployment_file(deployment_file_path: &str) -> io::Result<Config> {
+    info!("Deploying from {}...", deployment_file_path);
+
+    let yaml_data = match fs::read_to_string(deployment_file_path) {
         Err(err) => {
-            error!("Unable to read configuration file: {}", err);
-            return;
+            return Err(io::Error::new(
+                err.kind(),
+                format!("Unable to read configuration file: {}", err),
+            ));
         }
         Ok(s) => s,
     };
     let config: Config = match serde_yaml::from_str(&yaml_data) {
         Err(err) => {
-            error!("Unable to parse configuration file: {}", err);
-            return;
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Unable to parse configuration file: {}", err),
+            ));
         }
         Ok(c) => c,
     };
 
     debug!("Configuration: {:?}", config);
 
-    let mut root = PathBuf::new();
-    root.push(
-        Path::new(args.deployment_file_path.as_str())
-            .parent()
-            .unwrap(),
-    );
-    root.push(config.root.unwrap_or(".".to_string()));
+    Ok(config)
+}
 
-    debug!(
-        "Root is {}",
-        fs::canonicalize(root.as_path()).unwrap().to_str().unwrap()
-    );
-
-    if let Err(err) = file_format::check_invalid_unit_keys(&config.units)
-        .and_then(|_| file_format::check_dependency_cycles(&config.units))
-    {
-        error!("Configuration is invalid: {}", err);
-        return;
+fn init_logging(verbose: bool) {
+    if verbose {
+        std::env::set_var("RUST_LOG", "debug");
+    } else {
+        std::env::set_var("RUST_LOG", "info");
     }
-
-    if !args.skip_helm_repositories {
-        if let Err(err) = helm_repositories::handle_helm_repositories(
-            config.helm_repositories.as_slice(),
-            args.dry_run,
-        ) {
-            error!("Adding helm repositories failed: {}", err);
-            return;
-        }
-    }
-
-    if !args.skip_units {
-        if let Err(err) = units::run_units(root.as_path(), config.units, args.upgrade, args.dry_run)
-        {
-            error!("Running units failed: {}", err);
-            return;
-        }
-    }
+    env_logger::init();
 }

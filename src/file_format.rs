@@ -28,11 +28,6 @@ pub(crate) struct UnitWithDependencies {
 #[serde(untagged)]
 pub(crate) enum Unit {
     #[serde(rename_all = "camelCase")]
-    Noop {
-        #[allow(dead_code)]
-        noop: Option<String>,
-    },
-    #[serde(rename_all = "camelCase")]
     Shell { shell: Shell },
     #[serde(rename_all = "camelCase")]
     Manifest { manifest: Manifest },
@@ -40,6 +35,11 @@ pub(crate) enum Unit {
     HelmRemote { helm_remote: HelmRemote },
     #[serde(rename_all = "camelCase")]
     HelmLocal { helm_local: HelmLocal },
+    #[serde(rename_all = "camelCase")]
+    Noop {
+        #[allow(dead_code)]
+        noop: Option<String>,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -120,7 +120,10 @@ pub fn check_dependency_cycles(units: &IndexMap<String, UnitWithDependencies>) -
         ) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("dependency cycle for \"{}\": {:?}", unit_key, cycle),
+                format!(
+                    "Configuration is invalid, dependency cycle for \"{}\": {:?}",
+                    unit_key, cycle
+                ),
             ));
         }
     }
@@ -161,7 +164,7 @@ pub fn check_invalid_unit_keys(units: &IndexMap<String, UnitWithDependencies>) -
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             format!(
-                "invalid unit keys in \"depends_on\": {:?}",
+                "Configuration is invalid, invalid unit keys in \"depends_on\": {:?}",
                 depends_on_unit_keys_invalid
             ),
         ));

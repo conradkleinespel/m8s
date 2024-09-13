@@ -1,13 +1,13 @@
 use crate::file_format::{HelmLocal, HelmRemote, Manifest, Shell, Unit, UnitWithDependencies};
 use indexmap::IndexMap;
 use log::{debug, info};
+use serde::Deserialize;
 use std::io;
 use std::path::{Path, PathBuf};
 
 pub fn run_units(
     root: &Path,
     units: IndexMap<String, UnitWithDependencies>,
-    upgrade: bool,
     dry_run: bool,
 ) -> io::Result<()> {
     info!("Running units...");
@@ -17,8 +17,6 @@ pub fn run_units(
         debug!("Already done units: {:?}", unit_keys_done);
 
         for (unit_key, UnitWithDependencies { depends_on, unit }) in units.iter() {
-            debug!("Running unit {:?}", unit_key);
-
             let depends_on: Vec<String> = depends_on.clone().unwrap_or(Vec::new());
 
             let missing_dependencies: Vec<String> = depends_on
@@ -34,6 +32,7 @@ pub fn run_units(
                 continue;
             }
 
+            debug!("Running unit {:?}", unit);
             match unit {
                 Unit::Noop { noop: _ } => {}
                 Unit::Shell { shell } => {
@@ -43,10 +42,10 @@ pub fn run_units(
                     run_unit_manifest(root, dry_run, manifest)?;
                 }
                 Unit::HelmRemote { helm_remote } => {
-                    run_unit_helm_remote(root, upgrade, dry_run, helm_remote)?;
+                    run_unit_helm_remote(root, dry_run, helm_remote)?;
                 }
                 Unit::HelmLocal { helm_local } => {
-                    run_unit_helm_local(root, upgrade, dry_run, helm_local)?;
+                    run_unit_helm_local(root, dry_run, helm_local)?;
                 }
             }
 
@@ -68,14 +67,54 @@ fn has_pending_units(
     next_unit_not_yet_ran.is_some()
 }
 
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+struct HelmRelease {
+    name: String,
+    namespace: String,
+}
+
+fn helm_release_exists(name: &str, namespace: &str) -> io::Result<bool> {
+    let output = std::process::Command::new("helm")
+        .arg("list")
+        .arg("--namespace")
+        .arg(namespace)
+        .arg("--output")
+        .arg("yaml")
+        .output()?;
+
+    let helm_releases: Vec<HelmRelease> = serde_yaml::from_str(
+        String::from_utf8_lossy(output.stdout.as_slice()).as_ref(),
+    )
+    .map_err(|err| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Could not read helm releases: {}", err),
+        )
+    })?;
+
+    Ok(helm_releases.contains(&HelmRelease {
+        name: name.to_string(),
+        namespace: namespace.to_string(),
+    }))
+}
+
 fn run_unit_helm_local(
     root: &Path,
-    upgrade: bool,
     dry_run: bool,
     helm_local: &HelmLocal,
 ) -> Result<(), io::Error> {
+    let already_installed =
+        helm_release_exists(helm_local.name.as_str(), helm_local.namespace.as_str())?;
+
     let mut args = Vec::<String>::new();
-    args.push(if upgrade { "upgrade" } else { "install" }.to_string());
+    args.push(
+        if already_installed {
+            "upgrade"
+        } else {
+            "install"
+        }
+        .to_string(),
+    );
     args.push(helm_local.name.to_string());
     args.push(helm_local.chart_path.to_string());
     args.push("--namespace".to_string());
@@ -103,12 +142,21 @@ fn run_unit_helm_local(
 
 fn run_unit_helm_remote(
     root: &Path,
-    upgrade: bool,
     dry_run: bool,
     helm_remote: &HelmRemote,
 ) -> Result<(), io::Error> {
+    let already_installed =
+        helm_release_exists(helm_remote.name.as_str(), helm_remote.namespace.as_str())?;
+
     let mut args = Vec::<String>::new();
-    args.push(if upgrade { "upgrade" } else { "install" }.to_string());
+    args.push(
+        if already_installed {
+            "upgrade"
+        } else {
+            "install"
+        }
+        .to_string(),
+    );
     args.push(helm_remote.name.to_string());
     args.push(helm_remote.chart_name.to_string());
     args.push("--version".to_string());

@@ -47,4 +47,4 @@ units:
       - helmIngressNginx
 ```
 
-Then, call `m8s my-deployment.yaml` and `m8s` will run `kubectl`, `helm`, and other tools as needed 🚀
+Then, call `m8s up my-deployment.yaml` and `m8s` will run `kubectl`, `helm`, and other tools as needed 🚀
