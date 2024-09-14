@@ -5,28 +5,28 @@ use std::io;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct Config {
-    pub(crate) root: Option<String>,
-    pub(crate) helm_repositories: Vec<HelmRepository>,
-    pub(crate) units: IndexMap<String, UnitWithDependencies>,
+pub struct Config {
+    pub root: Option<String>,
+    pub helm_repositories: Vec<HelmRepository>,
+    pub units: IndexMap<String, UnitWithDependencies>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct HelmRepository {
-    pub(crate) name: String,
-    pub(crate) url: String,
+pub struct HelmRepository {
+    pub name: String,
+    pub url: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-pub(crate) struct UnitWithDependencies {
+pub struct UnitWithDependencies {
     #[serde(flatten)]
-    pub(crate) unit: Unit,
-    pub(crate) depends_on: Option<Vec<String>>,
+    pub unit: Unit,
+    pub depends_on: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
-pub(crate) enum Unit {
+pub enum Unit {
     #[serde(rename_all = "camelCase")]
     Shell { shell: Shell },
     #[serde(rename_all = "camelCase")]
@@ -44,33 +44,33 @@ pub(crate) enum Unit {
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct Shell {
-    pub(crate) input: String,
+pub struct Shell {
+    pub input: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct Manifest {
-    pub(crate) path: String,
+pub struct Manifest {
+    pub path: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct HelmRemote {
-    pub(crate) name: String,
-    pub(crate) namespace: String,
-    pub(crate) chart_name: String,
-    pub(crate) chart_version: String,
-    pub(crate) values: Vec<String>,
+pub struct HelmRemote {
+    pub name: String,
+    pub namespace: String,
+    pub chart_name: String,
+    pub chart_version: String,
+    pub values: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct HelmLocal {
-    pub(crate) name: String,
-    pub(crate) namespace: String,
-    pub(crate) chart_path: String,
-    pub(crate) values: Vec<String>,
+pub struct HelmLocal {
+    pub name: String,
+    pub namespace: String,
+    pub chart_path: String,
+    pub values: Vec<String>,
 }
 
 /// Looks for cycles using a depth-first approach

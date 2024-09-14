@@ -1,10 +1,5 @@
-mod file_format;
-mod helm_repositories;
-mod units;
-mod utils;
-
 use clap::{Parser, Subcommand};
-use file_format::Config;
+use libm8s::file_format::Config;
 use log::{debug, error, info};
 use serde_yaml;
 use std::path::{Path, PathBuf};
@@ -111,15 +106,18 @@ fn execute_subcommand(
 
     let deployment_file_path = global_options.file.unwrap_or("m8s.yaml".to_string());
 
-    let config = parse_deployment_file(deployment_file_path.as_str())?;
-    let root = build_resources_root_from_config(deployment_file_path.as_str(), &config)?;
+    let config = libm8s::parse_deployment_file(deployment_file_path.as_str())?;
+    let root = libm8s::build_resources_root_from_config(deployment_file_path.as_str(), &config)?;
 
-    file_format::check_invalid_unit_keys(&config.units)?;
-    file_format::check_dependency_cycles(&config.units)?;
+    libm8s::file_format::check_invalid_unit_keys(&config.units)?;
+    libm8s::file_format::check_dependency_cycles(&config.units)?;
 
     if !skip_helm_repositories {
-        helm_repositories::handle_helm_repositories(config.helm_repositories.as_slice(), dry_run)
-            .map_err(|err| {
+        libm8s::helm_repositories::handle_helm_repositories(
+            config.helm_repositories.as_slice(),
+            dry_run,
+        )
+        .map_err(|err| {
             io::Error::new(
                 err.kind(),
                 format!("Adding helm repositories failed: {}", err),
@@ -128,7 +126,7 @@ fn execute_subcommand(
     }
 
     if !skip_units {
-        units::run_units(
+        libm8s::units::run_units(
             root.as_path(),
             config.units,
             units_filter_without_dependencies,
@@ -140,51 +138,6 @@ fn execute_subcommand(
     }
 
     Ok(())
-}
-
-fn build_resources_root_from_config(
-    deployment_file_path: &str,
-    config: &Config,
-) -> io::Result<PathBuf> {
-    debug!("Building resources root from config: {:?}", config.root);
-    let mut root = PathBuf::new();
-    root.push(Path::new(deployment_file_path).parent().unwrap());
-    // Need at least "." to prevent the root being empty, see Path::parent()
-    root.push(config.root.clone().unwrap_or(".".to_string()));
-
-    let absolute_path = fs::canonicalize(root.as_path())?
-        .to_string_lossy()
-        .to_string();
-    debug!("Root is {}", absolute_path);
-
-    Ok(root)
-}
-
-fn parse_deployment_file(deployment_file_path: &str) -> io::Result<Config> {
-    info!("Deploying from {}...", deployment_file_path);
-
-    let yaml_data = match fs::read_to_string(deployment_file_path) {
-        Err(err) => {
-            return Err(io::Error::new(
-                err.kind(),
-                format!("Unable to read configuration file: {}", err),
-            ));
-        }
-        Ok(s) => s,
-    };
-    let config: Config = match serde_yaml::from_str(&yaml_data) {
-        Err(err) => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("Unable to parse configuration file: {}", err),
-            ));
-        }
-        Ok(c) => c,
-    };
-
-    debug!("Configuration: {:?}", config);
-
-    Ok(config)
 }
 
 fn init_logging(verbose: bool) {
