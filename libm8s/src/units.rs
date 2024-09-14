@@ -273,7 +273,7 @@ fn run_unit_helm_local(
     args.push("--namespace".to_string());
     args.push(helm_local.namespace.to_string());
 
-    for values_file in helm_local.values.as_slice() {
+    for values_file in helm_local.values.clone().unwrap_or(Vec::new()).as_slice() {
         let mut path = PathBuf::new();
         path.push(root);
         path.push(values_file.as_str());
@@ -322,7 +322,7 @@ fn run_unit_helm_remote(
     args.push("--namespace".to_string());
     args.push(helm_remote.namespace.to_string());
 
-    for values_file in helm_remote.values.as_slice() {
+    for values_file in helm_remote.values.clone().unwrap_or(Vec::new()).as_slice() {
         let mut path = PathBuf::new();
         path.push(root);
         path.push(values_file.as_str());

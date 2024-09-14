@@ -1,0 +1,37 @@
+---
+units:
+  foobarNoop:
+    noop: ""
+  foobarShell:
+    shell:
+      input: |
+        my shell script
+  foobarManifest:
+    manifest:
+      path: path/to/manifest.yaml
+  foobarHelmLocal:
+    helmLocal:
+      name: test-name
+      namespace: test-namespace
+      chartPath: path/to/chart
+      values:
+        - values.yaml
+  foobarHelmLocalNoValues:
+    helmLocal:
+      name: test-name
+      namespace: test-namespace
+      chartPath: path/to/chart
+  foobarHelmRemote:
+    helmRemote:
+      name: test-name
+      namespace: test-namespace
+      chartName: chart/name
+      chartVersion: 1.33.7
+      values:
+        - values.yaml
+  foobarHelmRemoteNoValues:
+    helmRemote:
+      name: test-name
+      namespace: test-namespace
+      chartName: chart/name
+      chartVersion: 1.33.7

@@ -61,7 +61,7 @@ pub struct HelmRemote {
     pub namespace: String,
     pub chart_name: String,
     pub chart_version: String,
-    pub values: Vec<String>,
+    pub values: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -70,41 +70,7 @@ pub struct HelmLocal {
     pub name: String,
     pub namespace: String,
     pub chart_path: String,
-    pub values: Vec<String>,
-}
-
-#[test]
-fn test_parse_most_basic() {
-    let multiline_string = r#"
-units:
-    foobarNoop:
-        noop: ""
-    foobarShell:
-        shell:
-            input: |
-                my shell script
-    foobarManifest:
-        manifest:
-            path: path/to/manifest.yaml
-    foobarHelmLocal:
-        helmLocal:
-            name: miniflux-postgres
-            namespace: miniflux-postgres
-            chartPath: charts/postgres
-            values:
-            - values/miniflux-postgres.yaml
-"#;
-
-    let config: Config = serde_yaml::from_str(multiline_string).unwrap();
-    assert_eq!(
-        config.units.get("foobarNoop").unwrap(),
-        &UnitWithDependencies {
-            unit: Unit::Noop {
-                noop: "".to_string()
-            },
-            depends_on: None
-        }
-    )
+    pub values: Option<Vec<String>>,
 }
 
 /// Looks for cycles using a depth-first approach

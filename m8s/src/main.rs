@@ -1,9 +1,6 @@
 use clap::{Parser, Subcommand};
-use libm8s::file_format::Config;
-use log::{debug, error, info};
-use serde_yaml;
-use std::path::{Path, PathBuf};
-use std::{env, fs, io, process};
+use log::error;
+use std::{env, io, process};
 
 #[derive(Parser)]
 #[command(about = "What if helm, kubectl and others were roommates", long_about = None)]
