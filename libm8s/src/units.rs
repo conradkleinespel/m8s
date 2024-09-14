@@ -253,7 +253,7 @@ fn run_unit_helm_local(
     let mut args = Vec::<String>::new();
     args.push(
         if already_installed {
-            "upgrade" // TODO: only upgrade when values/version/etc have changed
+            "upgrade"
         } else {
             "install"
         }
@@ -300,7 +300,7 @@ fn run_unit_helm_remote(
     let mut args = Vec::<String>::new();
     args.push(
         if already_installed {
-            "upgrade" // TODO: only upgrade when values/version/etc have changed
+            "upgrade"
         } else {
             "install"
         }
