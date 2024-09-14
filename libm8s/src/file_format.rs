@@ -3,7 +3,7 @@ use serde::Deserialize;
 use std::collections::HashSet;
 use std::io;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub root: Option<String>,
@@ -11,7 +11,7 @@ pub struct Config {
     pub units: IndexMap<String, UnitWithDependencies>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct HelmRepository {
     pub name: String,
     pub url: String,

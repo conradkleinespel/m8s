@@ -1,0 +1,10 @@
+---
+root: path/to/root
+
+helmRepositories:
+  - name: argo
+    url: https://argoproj.github.io/argo-helm
+
+units:
+  foobarNoop:
+    noop: ""
