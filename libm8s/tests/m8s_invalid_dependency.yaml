@@ -1,0 +1,11 @@
+---
+units:
+  foobarNoop:
+    noop: ""
+    depends_on:
+      - doesNotExist1
+  foobazNoop:
+    noop: ""
+    depends_on:
+      - foobarNoop
+      - doesNotExist2

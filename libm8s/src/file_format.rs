@@ -1,4 +1,4 @@
-use indexmap::IndexMap;
+use indexmap::{indexmap, IndexMap};
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::io;
@@ -102,6 +102,47 @@ fn analyse_cycles(
     Ok(())
 }
 
+#[test]
+fn test_analyse_cycles_returns_cycle_as_error() {
+    assert_eq!(
+        vec![
+            "a".to_string(),
+            "c".to_string(),
+            "b".to_string(),
+            "a".to_string()
+        ],
+        analyse_cycles(
+            &"a".to_string(),
+            &indexmap! {
+                "a".to_string() => vec!["c".to_string()],
+                "b".to_string() => vec!["a".to_string()],
+                "c".to_string() => vec!["b".to_string()],
+            },
+            &mut HashSet::new(),
+            &mut Vec::new(),
+        )
+        .err()
+        .unwrap()
+    );
+}
+
+#[test]
+fn test_analyse_cycles_returns_ok_when_no_cycle_is_detected() {
+    assert_eq!(
+        Ok(()),
+        analyse_cycles(
+            &"c".to_string(),
+            &indexmap! {
+                "a".to_string() => vec![],
+                "b".to_string() => vec!["a".to_string()],
+                "c".to_string() => vec!["b".to_string()],
+            },
+            &mut HashSet::new(),
+            &mut Vec::new(),
+        )
+    );
+}
+
 pub fn check_dependency_cycles(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
     let mut dependencies_by_unit_key = IndexMap::new();
     for (unit_key, unit) in units {
@@ -121,8 +162,9 @@ pub fn check_dependency_cycles(units: &IndexMap<String, UnitWithDependencies>) -
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
-                    "Configuration is invalid, dependency cycle for \"{}\": {:?}",
-                    unit_key, cycle
+                    "Configuration is invalid, dependency cycle for \"{}\": {}",
+                    unit_key,
+                    cycle.join(" -> ")
                 ),
             ));
         }
@@ -155,17 +197,19 @@ pub fn check_invalid_unit_keys(units: &IndexMap<String, UnitWithDependencies>) -
         .into_iter();
 
     // Deduplicate invalid unit keys that appear multiple times
-    let depends_on_unit_keys_invalid = depends_on_unit_keys_invalid
+    let mut depends_on_unit_keys_invalid = depends_on_unit_keys_invalid
         .collect::<HashSet<_>>()
         .into_iter()
         .collect::<Vec<String>>();
+
+    depends_on_unit_keys_invalid.sort();
 
     if depends_on_unit_keys_invalid.len() > 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             format!(
-                "Configuration is invalid, invalid unit keys in \"depends_on\": {:?}",
-                depends_on_unit_keys_invalid
+                "Configuration is invalid, invalid dependencies: {}",
+                depends_on_unit_keys_invalid.join(", ")
             ),
         ));
     }

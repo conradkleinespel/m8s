@@ -1,0 +1,6 @@
+---
+units:
+  foobarNoop:
+    noop: ""
+    depends_on:
+      - foobarNoop

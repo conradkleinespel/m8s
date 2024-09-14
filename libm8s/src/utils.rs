@@ -3,7 +3,7 @@ use std::io;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 
-pub fn run_command_with_piped_stdio(
+pub(crate) fn run_command_with_piped_stdio(
     program: &str,
     args: &[&str],
     kubeconfig: Option<&String>,

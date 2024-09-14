@@ -1,5 +1,5 @@
 use crate::file_format::{HelmLocal, HelmRemote, Manifest, Shell, Unit, UnitWithDependencies};
-use indexmap::IndexMap;
+use indexmap::{indexmap, IndexMap};
 use log::{debug, info};
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -33,8 +33,6 @@ pub fn run_units(
             units.keys().map(|i| i.to_string()).collect::<Vec<String>>()
         );
     }
-
-    // return Ok(());
 
     let mut unit_keys_done: Vec<String> = Vec::new();
     while has_pending_units(&units, unit_keys_done.as_slice()) {
@@ -123,75 +121,68 @@ fn get_filtered_units(
 }
 
 #[test]
-fn test_get_filtered_units() {
-    let mut units = IndexMap::new();
-    units.insert(
-        "a".to_string(),
-        UnitWithDependencies {
+fn test_get_filtered_units_returns_units_recursively_based_on_skip_dependencies_parameter() {
+    let units = indexmap! {
+        "a".to_string() => UnitWithDependencies {
             unit: Unit::Noop {
                 noop: "".to_string(),
             },
             depends_on: None,
         },
-    );
-    units.insert(
-        "b".to_string(),
-        UnitWithDependencies {
+        "b".to_string() => UnitWithDependencies {
             unit: Unit::Noop {
                 noop: "".to_string(),
             },
             depends_on: Some(vec!["a".to_string()]),
         },
-    );
-    units.insert(
-        "c".to_string(),
-        UnitWithDependencies {
+        "c".to_string() => UnitWithDependencies {
+            unit: Unit::Noop {
+                noop: "".to_string(),
+            },
+            depends_on: Some(vec!["b".to_string()]),
+        },
+        "d".to_string() => UnitWithDependencies {
             unit: Unit::Noop {
                 noop: "".to_string(),
             },
             depends_on: None,
         },
-    );
+    };
 
-    let mut units_expected_with_dependencies = IndexMap::new();
-    units_expected_with_dependencies.insert(
-        "b".to_string(),
-        UnitWithDependencies {
-            unit: Unit::Noop {
-                noop: "".to_string(),
+    assert_eq!(
+        indexmap! {
+            "c".to_string() => UnitWithDependencies {
+                unit: Unit::Noop {
+                    noop: "".to_string(),
+                },
+                depends_on: Some(vec!["b".to_string()]),
             },
-            depends_on: Some(vec!["a".to_string()]),
-        },
-    );
-    units_expected_with_dependencies.insert(
-        "a".to_string(),
-        UnitWithDependencies {
-            unit: Unit::Noop {
-                noop: "".to_string(),
+            "b".to_string() => UnitWithDependencies {
+                unit: Unit::Noop {
+                    noop: "".to_string(),
+                },
+                depends_on: Some(vec!["a".to_string()]),
             },
-            depends_on: None,
-        },
-    );
-
-    let mut units_expected_without_dependencies = IndexMap::new();
-    units_expected_without_dependencies.insert(
-        "b".to_string(),
-        UnitWithDependencies {
-            unit: Unit::Noop {
-                noop: "".to_string(),
+            "a".to_string() => UnitWithDependencies {
+                unit: Unit::Noop {
+                    noop: "".to_string(),
+                },
+                depends_on: None,
             },
-            depends_on: Some(vec!["a".to_string()]),
         },
+        get_filtered_units(&units, &vec!["c".to_string()], false, &mut HashSet::new())
     );
 
     assert_eq!(
-        get_filtered_units(&units, &vec!["b".to_string()], false, &mut HashSet::new()),
-        units_expected_with_dependencies
-    );
-
-    assert_eq!(
-        get_filtered_units(&units, &vec!["b".to_string()], true, &mut HashSet::new()),
-        units_expected_without_dependencies
+        indexmap! {
+            "c".to_string() => UnitWithDependencies {
+                unit: Unit::Noop {
+                    noop: "".to_string(),
+                },
+                depends_on: Some(vec!["b".to_string()]),
+            },
+        },
+        get_filtered_units(&units, &vec!["c".to_string()], true, &mut HashSet::new())
     );
 }
 
@@ -361,7 +352,7 @@ fn run_unit_manifest(
     Ok(())
 }
 
-pub fn run_unit_shell(
+fn run_unit_shell(
     dry_run: bool,
     shell: &&Shell,
     kubeconfig: Option<&String>,
