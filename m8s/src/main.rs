@@ -114,7 +114,7 @@ fn execute_subcommand(
 
     if !skip_helm_repositories {
         libm8s::helm_repositories::handle_helm_repositories(
-            config.helm_repositories.as_slice(),
+            config.helm_repositories.unwrap_or(Vec::new()).as_slice(),
             dry_run,
         )
         .map_err(|err| {

@@ -7,7 +7,7 @@ use std::io;
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub root: Option<String>,
-    pub helm_repositories: Vec<HelmRepository>,
+    pub helm_repositories: Option<Vec<HelmRepository>>,
     pub units: IndexMap<String, UnitWithDependencies>,
 }
 
@@ -71,6 +71,40 @@ pub struct HelmLocal {
     pub namespace: String,
     pub chart_path: String,
     pub values: Vec<String>,
+}
+
+#[test]
+fn test_parse_most_basic() {
+    let multiline_string = r#"
+units:
+    foobarNoop:
+        noop: ""
+    foobarShell:
+        shell:
+            input: |
+                my shell script
+    foobarManifest:
+        manifest:
+            path: path/to/manifest.yaml
+    foobarHelmLocal:
+        helmLocal:
+            name: miniflux-postgres
+            namespace: miniflux-postgres
+            chartPath: charts/postgres
+            values:
+            - values/miniflux-postgres.yaml
+"#;
+
+    let config: Config = serde_yaml::from_str(multiline_string).unwrap();
+    assert_eq!(
+        config.units.get("foobarNoop").unwrap(),
+        &UnitWithDependencies {
+            unit: Unit::Noop {
+                noop: "".to_string()
+            },
+            depends_on: None
+        }
+    )
 }
 
 /// Looks for cycles using a depth-first approach
