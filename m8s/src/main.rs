@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use log::error;
 use std::{env, io, process};
 
@@ -14,36 +14,100 @@ struct GlobalConfigArgs {
     /// Show verbose logs
     #[arg(short, long)]
     verbose: bool,
-    /// Path to the deployment file in YAML format
-    #[arg(short, long)]
-    file: Option<String>,
+}
+
+#[derive(Args)]
+#[group(multiple = false)]
+struct OptionHelmRepositories {
+    /// Add and update Helm repositories (aka `helm repo add/update`)
+    #[arg(long)]
+    helm_repositories: bool,
+    #[arg(long)]
+    no_helm_repositories: bool,
+}
+
+impl OptionHelmRepositories {
+    fn get_value(&self) -> bool {
+        if self.helm_repositories {
+            return true;
+        }
+        if self.no_helm_repositories {
+            return false;
+        }
+        true
+    }
+}
+
+#[derive(Args)]
+#[group(multiple = false)]
+struct OptionUnits {
+    /// Update the Kubernetes resources (aka `kubectl apply`, `helm install`, etc)
+    #[arg(long)]
+    units: bool,
+    #[arg(long)]
+    no_units: bool,
+}
+
+impl OptionUnits {
+    fn get_value(&self) -> bool {
+        if self.units {
+            return true;
+        }
+        if self.no_units {
+            return false;
+        }
+        true
+    }
+}
+
+#[derive(Args)]
+#[group(multiple = false)]
+struct OptionDependencies {
+    /// Run units and their dependencies, requires UNITS
+    #[arg(long)]
+    dependencies: bool,
+    #[arg(long)]
+    no_dependencies: bool,
+}
+
+impl OptionDependencies {
+    fn get_value(&self) -> bool {
+        if self.dependencies {
+            return true;
+        }
+        if self.no_dependencies {
+            return false;
+        }
+        true
+    }
 }
 
 #[derive(Subcommand)]
 enum Command {
     /// Deploys resources using the current k8s config context
     Up {
-        units: Vec<String>,
-        #[clap(flatten)]
-        global_options: GlobalConfigArgs,
+        #[arg(name = "UNITS")]
+        units_args: Vec<String>,
+        /// Path to the deployment file in YAML format
+        #[arg(short, long)]
+        file: Option<String>,
         /// Change to DIRECTORY before doing anything
         #[arg(short = 'C', long)]
         directory: Option<String>,
         /// Path to the kubeconfig file to use for CLI requests
         #[arg(long)]
         kubeconfig: Option<String>,
-        /// Do not add or update Helm repositories (aka `helm repo add`)
-        #[arg(long)]
-        skip_helm_repositories: bool,
-        /// Do not update the Kubernetes resources (aka `kubectl apply`, `helm install`, etc)
-        #[arg(long)]
-        skip_units: bool,
-        /// Do not run dependencies, only run the units passed as arguments (requires UNITS)
-        #[arg(long)]
-        skip_dependencies: bool,
+        #[clap(flatten)]
+        helm_repositories: OptionHelmRepositories,
+        #[clap(flatten)]
+        units: OptionUnits,
+        #[clap(flatten)]
+        dependencies: OptionDependencies,
         /// Show logs but do not actually apply changes
         #[arg(long)]
         dry_run: bool,
+        #[clap(flatten)]
+        global_options: GlobalConfigArgs,
     },
 }
 
@@ -52,24 +116,28 @@ fn main() {
 
     let result = match args.command {
         Command::Up {
-            units,
+            units_args,
             global_options,
+            file,
             directory,
             kubeconfig,
-            skip_helm_repositories,
-            skip_units,
-            skip_dependencies,
-            dry_run,
-        } => execute_subcommand(
+            helm_repositories,
             units,
-            global_options,
-            directory,
-            kubeconfig.as_ref(),
-            skip_helm_repositories,
-            skip_units,
-            skip_dependencies,
+            dependencies,
             dry_run,
-        ),
+        } => {
+            init_logging(global_options.verbose);
+            execute_up_command(
+                units_args,
+                file.clone(),
+                directory,
+                kubeconfig.as_ref(),
+                helm_repositories,
+                units,
+                dependencies,
+                dry_run,
+            )
+        }
     };
 
     if let Err(err) = result {
@@ -78,22 +146,30 @@ fn main() {
     }
 }
 
-fn execute_subcommand(
-    units_filter_without_dependencies: Vec<String>,
-    global_options: GlobalConfigArgs,
+fn execute_up_command(
+    units_args: Vec<String>,
+    file: Option<String>,
     directory: Option<String>,
     kubeconfig: Option<&String>,
-    skip_helm_repositories: bool,
-    skip_units: bool,
-    skip_dependencies: bool,
+    helm_repositories: OptionHelmRepositories,
+    units: OptionUnits,
+    dependencies: OptionDependencies,
     dry_run: bool,
 ) -> io::Result<()> {
-    init_logging(global_options.verbose);
-
-    if skip_dependencies && units_filter_without_dependencies.len() == 0 {
+    if (dependencies.dependencies || dependencies.no_dependencies) && units_args.len() == 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "option --skip-dependencies only works when you passe UNITS too",
+            "option --dependencies/--no-dependencies only works when you pass argument UNITS too"
+                .to_string(),
+        ));
+    }
+    if units.no_units && units_args.len() > 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "option --no-units only works when you don't pass argument UNITS, you passed [{}]",
+                units_args.join(", ")
+            ),
         ));
     }
 
@@ -101,7 +177,7 @@ fn execute_subcommand(
         env::set_current_dir(directory)?;
     }
 
-    let deployment_file_path = global_options.file.unwrap_or("m8s.yaml".to_string());
+    let deployment_file_path = file.unwrap_or("m8s.yaml".to_string());
 
     let config = libm8s::parse_deployment_file(deployment_file_path.as_str())?;
     let root = libm8s::build_resources_root_from_config(deployment_file_path.as_str(), &config)?;
@@ -109,7 +185,7 @@ fn execute_subcommand(
     libm8s::file_format::check_invalid_unit_keys(&config.units)?;
     libm8s::file_format::check_dependency_cycles(&config.units)?;
 
-    if !skip_helm_repositories {
+    if helm_repositories.get_value() {
         libm8s::helm_repositories::handle_helm_repositories(
             config.helm_repositories.unwrap_or(Vec::new()).as_slice(),
             dry_run,
@@ -122,12 +198,12 @@ fn execute_subcommand(
         })?;
     }
 
-    if !skip_units {
+    if units.get_value() {
         libm8s::units::run_units(
             root.as_path(),
             config.units,
-            units_filter_without_dependencies,
-            skip_dependencies,
+            units_args,
+            dependencies.get_value(),
             kubeconfig,
             dry_run,
         )

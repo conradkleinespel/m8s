@@ -10,7 +10,7 @@ pub fn run_units(
     root: &Path,
     mut units: IndexMap<String, UnitWithDependencies>,
     units_filter_without_dependencies: Vec<String>,
-    skip_dependencies: bool,
+    dependencies: bool,
     kubeconfig: Option<&String>,
     dry_run: bool,
 ) -> io::Result<()> {
@@ -24,7 +24,7 @@ pub fn run_units(
         units = get_filtered_units(
             &units,
             &units_filter_without_dependencies,
-            skip_dependencies,
+            dependencies,
             &mut HashSet::new(),
         );
 
@@ -39,7 +39,7 @@ pub fn run_units(
         debug!("Already done units: {:?}", unit_keys_done);
 
         for (unit_key, UnitWithDependencies { depends_on, unit }) in units.iter() {
-            if !skip_dependencies {
+            if dependencies {
                 let depends_on: Vec<String> = depends_on.clone().unwrap_or(Vec::new());
                 let missing_dependencies: Vec<String> = depends_on
                     .iter()
@@ -82,7 +82,7 @@ pub fn run_units(
 fn get_filtered_units(
     units: &IndexMap<String, UnitWithDependencies>,
     units_filter: &Vec<String>,
-    skip_dependencies: bool,
+    dependencies: bool,
     visited: &mut HashSet<String>,
 ) -> IndexMap<String, UnitWithDependencies> {
     let mut dependencies_by_unit_key = IndexMap::new();
@@ -105,7 +105,7 @@ fn get_filtered_units(
             units.get(&next_unit_to_visit).unwrap().clone(),
         );
 
-        if skip_dependencies {
+        if !dependencies {
             continue;
         }
 
@@ -121,7 +121,7 @@ fn get_filtered_units(
 }
 
 #[test]
-fn test_get_filtered_units_returns_units_recursively_based_on_skip_dependencies_parameter() {
+fn test_get_filtered_units_returns_units_recursively_based_on_dependencies_parameter() {
     let units = indexmap! {
         "a".to_string() => UnitWithDependencies {
             unit: Unit::Noop {
@@ -170,7 +170,7 @@ fn test_get_filtered_units_returns_units_recursively_based_on_skip_dependencies_
                 depends_on: None,
             },
         },
-        get_filtered_units(&units, &vec!["c".to_string()], false, &mut HashSet::new())
+        get_filtered_units(&units, &vec!["c".to_string()], true, &mut HashSet::new())
     );
 
     assert_eq!(
@@ -182,7 +182,7 @@ fn test_get_filtered_units_returns_units_recursively_based_on_skip_dependencies_
                 depends_on: Some(vec!["b".to_string()]),
             },
         },
-        get_filtered_units(&units, &vec!["c".to_string()], true, &mut HashSet::new())
+        get_filtered_units(&units, &vec!["c".to_string()], false, &mut HashSet::new())
     );
 }
 
