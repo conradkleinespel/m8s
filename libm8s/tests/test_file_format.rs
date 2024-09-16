@@ -20,11 +20,10 @@ fn test_parse_succeeds_with_only_units() {
 }
 
 #[test]
-fn test_parse_succeeds_with_units_and_repositories_and_root() {
-    let test_file_yaml = include_str!("m8s_units_repositories_and_root.yaml");
+fn test_parse_succeeds_with_units_and_repositories() {
+    let test_file_yaml = include_str!("m8s_units_and_repositories.yaml");
 
     let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
-    assert_eq!(config.root, Some("path/to/root".to_string()));
     assert_eq!(config.helm_repositories.clone().unwrap().len(), 1usize);
     assert_eq!(
         config.helm_repositories.clone().unwrap()[0],

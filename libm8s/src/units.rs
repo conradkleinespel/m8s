@@ -4,10 +4,8 @@ use log::{debug, info};
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::io;
-use std::path::{Path, PathBuf};
 
 pub fn run_units(
-    root: &Path,
     mut units: IndexMap<String, UnitWithDependencies>,
     units_filter_without_dependencies: Vec<String>,
     dependencies: bool,
@@ -62,13 +60,13 @@ pub fn run_units(
                     run_unit_shell(dry_run, &shell, kubeconfig)?;
                 }
                 Unit::Manifest { manifest } => {
-                    run_unit_manifest(root, dry_run, manifest, kubeconfig)?;
+                    run_unit_manifest(dry_run, manifest, kubeconfig)?;
                 }
                 Unit::HelmRemote { helm_remote } => {
-                    run_unit_helm_remote(root, dry_run, helm_remote, kubeconfig)?;
+                    run_unit_helm_remote(dry_run, helm_remote, kubeconfig)?;
                 }
                 Unit::HelmLocal { helm_local } => {
-                    run_unit_helm_local(root, dry_run, helm_local, kubeconfig)?;
+                    run_unit_helm_local(dry_run, helm_local, kubeconfig)?;
                 }
             }
 
@@ -239,7 +237,6 @@ fn helm_release_exists(
 }
 
 fn run_unit_helm_local(
-    root: &Path,
     dry_run: bool,
     helm_local: &HelmLocal,
     kubeconfig: Option<&String>,
@@ -265,12 +262,8 @@ fn run_unit_helm_local(
     args.push(helm_local.namespace.to_string());
 
     for values_file in helm_local.values.clone().unwrap_or(Vec::new()).as_slice() {
-        let mut path = PathBuf::new();
-        path.push(root);
-        path.push(values_file.as_str());
-
         args.push("-f".to_string());
-        args.push(path.to_str().unwrap().to_string());
+        args.push(values_file.clone());
     }
 
     crate::utils::run_command_with_piped_stdio(
@@ -286,7 +279,6 @@ fn run_unit_helm_local(
 }
 
 fn run_unit_helm_remote(
-    root: &Path,
     dry_run: bool,
     helm_remote: &HelmRemote,
     kubeconfig: Option<&String>,
@@ -314,12 +306,8 @@ fn run_unit_helm_remote(
     args.push(helm_remote.namespace.to_string());
 
     for values_file in helm_remote.values.clone().unwrap_or(Vec::new()).as_slice() {
-        let mut path = PathBuf::new();
-        path.push(root);
-        path.push(values_file.as_str());
-
         args.push("-f".to_string());
-        args.push(path.to_str().unwrap().to_string());
+        args.push(values_file.clone());
     }
 
     crate::utils::run_command_with_piped_stdio(
@@ -335,17 +323,13 @@ fn run_unit_helm_remote(
 }
 
 fn run_unit_manifest(
-    root: &Path,
     dry_run: bool,
     manifest: &Manifest,
     kubeconfig: Option<&String>,
 ) -> Result<(), io::Error> {
-    let mut path = PathBuf::new();
-    path.push(root);
-    path.push(manifest.path.as_str());
     crate::utils::run_command_with_piped_stdio(
         "kubectl",
-        &["apply", "-f", path.to_str().unwrap()],
+        &["apply", "-f", manifest.path.as_str()],
         kubeconfig,
         dry_run,
     )?;

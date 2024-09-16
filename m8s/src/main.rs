@@ -178,12 +178,11 @@ fn execute_up_command(
     }
 
     let deployment_file_path = file.unwrap_or("m8s.yaml".to_string());
-
     let config = libm8s::parse_deployment_file(deployment_file_path.as_str())?;
-    let root = libm8s::build_resources_root_from_config(deployment_file_path.as_str(), &config)?;
 
     libm8s::file_format::check_invalid_unit_keys(&config.units)?;
     libm8s::file_format::check_dependency_cycles(&config.units)?;
+    libm8s::file_format::check_files_exist(&config.units)?;
 
     if helm_repositories.get_value() {
         libm8s::helm_repositories::handle_helm_repositories(
@@ -200,7 +199,6 @@ fn execute_up_command(
 
     if units.get_value() {
         libm8s::units::run_units(
-            root.as_path(),
             config.units,
             units_args,
             dependencies.get_value(),

@@ -1,12 +1,11 @@
 use indexmap::{indexmap, IndexMap};
 use serde::Deserialize;
 use std::collections::HashSet;
-use std::io;
+use std::{fs, io};
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
-    pub root: Option<String>,
     pub helm_repositories: Option<Vec<HelmRepository>>,
     pub units: IndexMap<String, UnitWithDependencies>,
 }
@@ -167,6 +166,71 @@ pub fn check_dependency_cycles(units: &IndexMap<String, UnitWithDependencies>) -
                     cycle.join(" -> ")
                 ),
             ));
+        }
+    }
+    Ok(())
+}
+
+fn create_file_not_exists_error(unit_key: &str, path: &str) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!(
+            "Invalid unit {}, references file that doesn't exist: {}",
+            unit_key, path
+        ),
+    )
+}
+
+fn create_directory_not_exists_error(unit_key: &str, path: &str) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!(
+            "Invalid unit {}, references directory that doesn't exist: {}",
+            unit_key, path
+        ),
+    )
+}
+
+pub fn check_files_exist(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
+    for (unit_key, UnitWithDependencies { unit, .. }) in units {
+        match unit {
+            Unit::Shell { .. } => {}
+            Unit::Manifest { manifest, .. } => {
+                if fs::exists(manifest.path.as_str())? == false {
+                    return Err(create_file_not_exists_error(
+                        unit_key.as_str(),
+                        manifest.path.as_str(),
+                    ));
+                }
+            }
+            Unit::HelmRemote { helm_remote } => {
+                for value in helm_remote.values.clone().unwrap_or(Vec::new()) {
+                    if fs::exists(value.as_str())? == false {
+                        return Err(create_file_not_exists_error(
+                            unit_key.as_str(),
+                            value.as_str(),
+                        ));
+                    }
+                }
+            }
+            Unit::HelmLocal { helm_local } => {
+                for value in helm_local.values.clone().unwrap_or(Vec::new()) {
+                    if fs::exists(value.as_str())? == false {
+                        return Err(create_file_not_exists_error(
+                            unit_key.as_str(),
+                            value.as_str(),
+                        ));
+                    }
+                }
+
+                if fs::exists(helm_local.chart_path.as_str())? == false {
+                    return Err(create_directory_not_exists_error(
+                        unit_key.as_str(),
+                        helm_local.chart_path.as_str(),
+                    ));
+                }
+            }
+            Unit::Noop { .. } => {}
         }
     }
     Ok(())
