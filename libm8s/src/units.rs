@@ -6,44 +6,54 @@ use std::collections::HashSet;
 use std::io;
 
 pub fn run_units(
-    mut units: IndexMap<String, UnitWithDependencies>,
-    units_filter_without_dependencies: Vec<String>,
+    units: IndexMap<String, UnitWithDependencies>,
+    units_args: Vec<String>,
     dependencies: bool,
     kubeconfig: Option<&String>,
     dry_run: bool,
 ) -> io::Result<()> {
     info!("Running units...");
 
-    debug!(
-        "Unit filter without dependencies: {:?}",
-        units_filter_without_dependencies
-    );
-    if units_filter_without_dependencies.len() > 0 {
-        units = get_filtered_units(
-            &units,
-            &units_filter_without_dependencies,
-            dependencies,
-            &mut HashSet::new(),
-        );
+    let units = get_filtered_units(units, units_args, dependencies, &mut HashSet::new());
+    debug!("Units filtered based on config: {:?}", units);
+    let units = reorder_units_from_dependencies(units, dependencies);
+    debug!("Units filtered and re-ordered based on config: {:?}", units);
 
-        debug!(
-            "Unit filter with dependencies: {:?}",
-            units.keys().map(|i| i.to_string()).collect::<Vec<String>>()
-        );
+    for (unit_key, UnitWithDependencies { unit, .. }) in units.iter() {
+        debug!("Running unit {} = {:?}", unit_key, unit);
+        match unit {
+            Unit::Noop { noop: _ } => {}
+            Unit::Shell { shell } => {
+                run_unit_shell(dry_run, &shell, kubeconfig)?;
+            }
+            Unit::Manifest { manifest } => {
+                run_unit_manifest(dry_run, manifest, kubeconfig)?;
+            }
+            Unit::HelmRemote { helm_remote } => {
+                run_unit_helm_remote(dry_run, helm_remote, kubeconfig)?;
+            }
+            Unit::HelmLocal { helm_local } => {
+                run_unit_helm_local(dry_run, helm_local, kubeconfig)?;
+            }
+        }
     }
 
-    let mut unit_keys_done: Vec<String> = Vec::new();
-    while has_pending_units(&units, unit_keys_done.as_slice()) {
-        debug!("Already done units: {:?}", unit_keys_done);
+    Ok(())
+}
 
-        for (unit_key, UnitWithDependencies { depends_on, unit }) in units.iter() {
+fn reorder_units_from_dependencies(
+    units: IndexMap<String, UnitWithDependencies>,
+    dependencies: bool,
+) -> IndexMap<String, UnitWithDependencies> {
+    let mut output = IndexMap::new();
+    while has_pending_units(&units, output.keys().collect::<Vec<&String>>().as_slice()) {
+        for (unit_key, UnitWithDependencies { depends_on, .. }) in units.iter() {
             if dependencies {
                 let depends_on: Vec<String> = depends_on.clone().unwrap_or(Vec::new());
-                let missing_dependencies: Vec<String> = depends_on
+                let missing_dependencies = depends_on
                     .iter()
-                    .filter(|item| !unit_keys_done.contains(item))
-                    .map(|item| item.to_string())
-                    .collect();
+                    .filter(|item| !output.keys().collect::<Vec<&String>>().contains(item))
+                    .collect::<Vec<&String>>();
                 if missing_dependencies.len() > 0 {
                     debug!(
                         "Skipping unit \"{}\", waiting for dependencies: {:?}",
@@ -53,38 +63,21 @@ pub fn run_units(
                 }
             }
 
-            debug!("Running unit {} = {:?}", unit_key, unit);
-            match unit {
-                Unit::Noop { noop: _ } => {}
-                Unit::Shell { shell } => {
-                    run_unit_shell(dry_run, &shell, kubeconfig)?;
-                }
-                Unit::Manifest { manifest } => {
-                    run_unit_manifest(dry_run, manifest, kubeconfig)?;
-                }
-                Unit::HelmRemote { helm_remote } => {
-                    run_unit_helm_remote(dry_run, helm_remote, kubeconfig)?;
-                }
-                Unit::HelmLocal { helm_local } => {
-                    run_unit_helm_local(dry_run, helm_local, kubeconfig)?;
-                }
-            }
-
-            unit_keys_done.push(unit_key.to_string());
+            output.insert(unit_key.to_string(), units[unit_key].clone());
         }
     }
 
-    Ok(())
+    output
 }
 
 fn get_filtered_units(
-    units: &IndexMap<String, UnitWithDependencies>,
-    units_filter: &Vec<String>,
+    units: IndexMap<String, UnitWithDependencies>,
+    units_args: Vec<String>,
     dependencies: bool,
     visited: &mut HashSet<String>,
 ) -> IndexMap<String, UnitWithDependencies> {
     let mut dependencies_by_unit_key = IndexMap::new();
-    for (unit_key, unit) in units {
+    for (unit_key, unit) in units.iter() {
         dependencies_by_unit_key.insert(
             unit_key.clone(),
             unit.depends_on.clone().unwrap_or(Vec::new()),
@@ -93,7 +86,7 @@ fn get_filtered_units(
 
     let mut filtered_units = IndexMap::new();
 
-    let mut stack = units_filter.clone();
+    let mut stack = units_args.clone();
     while let Some(next_unit_to_visit) = stack.pop() {
         if visited.contains(&next_unit_to_visit) {
             continue;
@@ -168,7 +161,12 @@ fn test_get_filtered_units_returns_units_recursively_based_on_dependencies_param
                 depends_on: None,
             },
         },
-        get_filtered_units(&units, &vec!["c".to_string()], true, &mut HashSet::new())
+        get_filtered_units(
+            units.clone(),
+            vec!["c".to_string()],
+            true,
+            &mut HashSet::new()
+        )
     );
 
     assert_eq!(
@@ -180,13 +178,18 @@ fn test_get_filtered_units_returns_units_recursively_based_on_dependencies_param
                 depends_on: Some(vec!["b".to_string()]),
             },
         },
-        get_filtered_units(&units, &vec!["c".to_string()], false, &mut HashSet::new())
+        get_filtered_units(
+            units.clone(),
+            vec!["c".to_string()],
+            false,
+            &mut HashSet::new()
+        )
     );
 }
 
 fn has_pending_units(
     units: &IndexMap<String, UnitWithDependencies>,
-    unit_keys_done: &[String],
+    unit_keys_done: &[&String],
 ) -> bool {
     let next_unit_not_yet_ran = units
         .iter()

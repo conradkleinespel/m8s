@@ -198,9 +198,14 @@ fn execute_up_command(
     }
 
     if units.get_value() {
+        let unit_args = if units_args.len() > 0 {
+            units_args
+        } else {
+            config.units.keys().map(|k| k.to_string()).collect()
+        };
         libm8s::units::run_units(
             config.units,
-            units_args,
+            unit_args,
             dependencies.get_value(),
             kubeconfig,
             dry_run,
