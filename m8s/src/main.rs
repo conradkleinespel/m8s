@@ -183,6 +183,7 @@ fn execute_up_command(
     libm8s::file_format::check_invalid_unit_keys(&config.units)?;
     libm8s::file_format::check_dependency_cycles(&config.units)?;
     libm8s::file_format::check_files_exist(&config.units)?;
+    libm8s::file_format::check_helm_remote_repositories(&config.units, &config.helm_repositories)?;
 
     if helm_repositories.get_value() {
         libm8s::helm_repositories::handle_helm_repositories(

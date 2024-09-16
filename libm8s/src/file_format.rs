@@ -191,6 +191,58 @@ fn create_directory_not_exists_error(unit_key: &str, path: &str) -> io::Error {
     )
 }
 
+pub fn check_helm_remote_repositories(
+    units: &IndexMap<String, UnitWithDependencies>,
+    helm_repositories: &Option<Vec<HelmRepository>>,
+) -> io::Result<()> {
+    for (unit_key, UnitWithDependencies { unit, .. }) in units {
+        match unit {
+            Unit::HelmRemote { helm_remote } => match helm_remote.chart_name.split_once("/") {
+                None => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!(
+                        "Invalid unit {}, chart name \"{}\" doesn't start with a repository name",
+                        unit_key, helm_remote.chart_name
+                    ),
+                    ))
+                }
+                Some((repository_name,_)) => match helm_repositories {
+                    None => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!(
+                                "Invalid unit {}, repository with name \"{}\" doesn't exist, no repositories configured",
+                                unit_key, repository_name
+                            ),
+                        ))
+                    }
+                    Some(helm_repositories) => {
+                        if helm_repositories
+                            .iter()
+                            .filter(|r| r.name == repository_name)
+                            .next()
+                            .is_none()
+                        {
+                            return Err(io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                format!(
+                                    "Invalid unit {}, repository with name \"{}\" doesn't exist, valid values are [{}]",
+                                    unit_key,
+                                    repository_name,
+                                    helm_repositories.iter().map(|r| r.name.clone()).collect::<Vec<String>>().join(", ")
+                                ),
+                            ));
+                        }
+                    }
+                },
+            },
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 pub fn check_files_exist(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
     for (unit_key, UnitWithDependencies { unit, .. }) in units {
         match unit {
