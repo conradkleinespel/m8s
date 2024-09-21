@@ -2,7 +2,7 @@
 
 [![Rust](https://github.com/conradkleinespel/m8s/actions/workflows/rust.yaml/badge.svg)](https://github.com/conradkleinespel/m8s/actions/workflows/rust.yaml)
 
-`m8s`, pronounced "mates", is a tool that let's you define your Kubernetes (manifests, helm charts, etc) in a declarative way and deploy them from the command-line.
+`m8s`, pronounced "mates", is a tool for declarative k8s deployment using Kubectl, Helm and more.
 
 ## Why use `m8s`?
 

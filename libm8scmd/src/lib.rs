@@ -5,7 +5,7 @@ mod command_up;
 pub mod utils;
 
 #[derive(Parser)]
-#[command(about = "What if helm, kubectl and others were roommates", long_about = None)]
+#[command(about = "Declarative k8s deployment using Kubectl, Helm and more", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
