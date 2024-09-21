@@ -1,5 +1,8 @@
 use clap::{Args, Parser, Subcommand};
-use std::{env, io};
+use std::io;
+
+mod command_up;
+pub mod utils;
 
 #[derive(Parser)]
 #[command(about = "What if helm, kubectl and others were roommates", long_about = None)]
@@ -110,8 +113,9 @@ enum Command {
     },
 }
 
-pub fn main_with_args(args: Vec<&str>) -> io::Result<()> {
+pub fn main_with_args(args: Vec<&str>, logging: bool) -> io::Result<()> {
     let args = Cli::parse_from(args);
+
     match args.command {
         Command::Up {
             units_args,
@@ -124,97 +128,20 @@ pub fn main_with_args(args: Vec<&str>) -> io::Result<()> {
             dependencies,
             dry_run,
         } => {
-            init_logging(global_options.verbose);
-            execute_up_command(
-                units_args,
-                file.clone(),
-                directory,
-                kubeconfig.as_ref(),
-                helm_repositories,
-                units,
-                dependencies,
-                dry_run,
-            )
+            if logging {
+                utils::init_logging(global_options.verbose);
+            }
+            utils::with_directory(directory, || {
+                command_up::execute_up_command(
+                    units_args,
+                    file.clone(),
+                    kubeconfig.as_ref(),
+                    helm_repositories,
+                    units,
+                    dependencies,
+                    dry_run,
+                )
+            })
         }
     }
-}
-
-fn execute_up_command(
-    units_args: Vec<String>,
-    file: Option<String>,
-    directory: Option<String>,
-    kubeconfig: Option<&String>,
-    helm_repositories: OptionHelmRepositories,
-    units: OptionUnits,
-    dependencies: OptionDependencies,
-    dry_run: bool,
-) -> io::Result<()> {
-    if (dependencies.dependencies || dependencies.no_dependencies) && units_args.len() == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "option --dependencies/--no-dependencies only works when you pass argument UNITS too"
-                .to_string(),
-        ));
-    }
-    if units.no_units && units_args.len() > 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!(
-                "option --no-units only works when you don't pass argument UNITS, you passed [{}]",
-                units_args.join(", ")
-            ),
-        ));
-    }
-
-    if let Some(directory) = directory {
-        env::set_current_dir(directory)?;
-    }
-
-    let deployment_file_path = file.unwrap_or("m8s.yaml".to_string());
-    let config = libm8s::parse_deployment_file(deployment_file_path.as_str())?;
-
-    libm8s::file_format::check_invalid_unit_keys(&config.units)?;
-    libm8s::file_format::check_dependency_cycles(&config.units)?;
-    libm8s::file_format::check_files_exist(&config.units)?;
-    libm8s::file_format::check_helm_remote_repositories(&config.units, &config.helm_repositories)?;
-
-    if helm_repositories.get_value() {
-        libm8s::helm_repositories::handle_helm_repositories(
-            config.helm_repositories.unwrap_or(Vec::new()).as_slice(),
-            dry_run,
-        )
-        .map_err(|err| {
-            io::Error::new(
-                err.kind(),
-                format!("Adding helm repositories failed: {}", err),
-            )
-        })?;
-    }
-
-    if units.get_value() {
-        let unit_args = if units_args.len() > 0 {
-            units_args
-        } else {
-            config.units.keys().map(|k| k.to_string()).collect()
-        };
-        libm8s::units::run_units(
-            config.units,
-            unit_args,
-            dependencies.get_value(),
-            kubeconfig,
-            dry_run,
-        )
-        .map_err(|err| io::Error::new(err.kind(), format!("Running units failed: {}", err)))?;
-    }
-
-    Ok(())
-}
-
-fn init_logging(verbose: bool) {
-    if verbose {
-        env::set_var("RUST_LOG", "debug");
-    } else {
-        env::set_var("RUST_LOG", "info");
-    }
-    env_logger::init();
 }

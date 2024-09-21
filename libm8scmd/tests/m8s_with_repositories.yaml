@@ -1,0 +1,7 @@
+---
+
+helmRepositories:
+  - name: test
+    url: https://example.com
+
+units: {}
