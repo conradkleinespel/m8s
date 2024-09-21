@@ -7,6 +7,9 @@
       <sourceFolder url="file://$MODULE_DIR$/libm8s/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/m8s/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/m8s/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/libm8scmd/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libm8scmd/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/libm8s/target" />
       <excludeFolder url="file://$MODULE_DIR$/m8s/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />

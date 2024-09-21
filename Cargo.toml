@@ -3,4 +3,5 @@ resolver = "2"
 members = [
     "m8s",
     "libm8s",
+    "libm8scmd",
 ]
