@@ -48,3 +48,12 @@ units:
 ```
 
 Then, call `m8s up my-deployment.yaml` and `m8s` will run `kubectl`, `helm`, and other tools as needed 🚀
+
+## Development
+
+To setup the environment, install [Rust](https://www.rust-lang.org/) and run:
+```shell
+git config --local core.hooksPath githooks/
+```
+
+Then, to run `m8s` locally, run `cargo run`.
