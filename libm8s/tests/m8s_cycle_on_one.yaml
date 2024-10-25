@@ -2,9 +2,9 @@
 units:
   foobarNoop:
     noop: ""
-    depends_on:
+    dependsOn:
       - foobazNoop
   foobazNoop:
     noop: ""
-    depends_on:
+    dependsOn:
       - foobarNoop

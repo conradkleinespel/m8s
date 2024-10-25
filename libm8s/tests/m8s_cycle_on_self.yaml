@@ -2,5 +2,5 @@
 units:
   foobarNoop:
     noop: ""
-    depends_on:
+    dependsOn:
       - foobarNoop

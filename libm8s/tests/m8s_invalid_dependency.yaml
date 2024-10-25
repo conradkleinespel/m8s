@@ -2,10 +2,10 @@
 units:
   foobarNoop:
     noop: ""
-    depends_on:
+    dependsOn:
       - doesNotExist1
   foobazNoop:
     noop: ""
-    depends_on:
+    dependsOn:
       - foobarNoop
       - doesNotExist2

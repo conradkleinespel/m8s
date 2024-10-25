@@ -37,13 +37,13 @@ units:
       chartVersion: 4.11.2
       values:
         - values/ingress-nginx.yaml
-    depends_on:
+    dependsOn:
       - ingressNginxNamespace
 
   myWebsite:
     manifest:
       path: manifests/my-website.yaml
-    depends_on:
+    dependsOn:
       - helmIngressNginx
 ```
 

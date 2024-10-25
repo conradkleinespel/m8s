@@ -11,12 +11,14 @@ pub struct Config {
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct HelmRepository {
     pub name: String,
     pub url: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct UnitWithDependencies {
     #[serde(flatten)]
     pub unit: Unit,
@@ -25,6 +27,7 @@ pub struct UnitWithDependencies {
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
+#[serde(rename_all = "camelCase")]
 pub enum Unit {
     #[serde(rename_all = "camelCase")]
     Shell { shell: Shell },
