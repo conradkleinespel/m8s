@@ -12,10 +12,26 @@ pub fn run_units(
     kubeconfig: Option<&String>,
     dry_run: bool,
 ) -> io::Result<()> {
-    info!("Running units...");
+    info!("Running units... units_args = {:?}", units_args);
 
-    let filtered_units =
-        get_filtered_units(units, units_args.clone(), dependencies, &mut HashSet::new());
+    let filtered_units = get_filtered_units(
+        units,
+        units_args
+            .clone()
+            .iter()
+            .map(|ua| {
+                return ua
+                    .splitn(2, ":")
+                    .collect::<Vec<&str>>()
+                    .get(0)
+                    .unwrap()
+                    .to_string();
+            })
+            .collect(),
+        dependencies,
+        &mut HashSet::new(),
+    );
+    info!("{:?}", units);
     debug!("Units filtered based on config: {:?}", filtered_units);
     let ordered_units = reorder_units_from_dependencies(filtered_units, dependencies);
     debug!(
@@ -40,7 +56,31 @@ pub fn run_units(
                 run_unit_helm_local(dry_run, helm_local, kubeconfig)?;
             }
             Unit::Group { group } => {
-                run_units(group, units_args.clone(), dependencies, kubeconfig, dry_run)?;
+                let unit_key_group_prefix = format!("{}:", unit_key);
+                let mut units_args_for_group: Vec<String> = units_args
+                    .iter()
+                    .filter(|ua| ua.starts_with(unit_key_group_prefix.as_str()))
+                    .map(|ua| {
+                        ua.splitn(2, ":")
+                            .collect::<Vec<&str>>()
+                            .get(1)
+                            .unwrap()
+                            .to_string()
+                    })
+                    .collect();
+
+                // When group is wanted without a specific part, run all of it
+                if units_args_for_group.is_empty() {
+                    units_args_for_group = group.keys().map(|k| k.to_string()).collect();
+                }
+
+                run_units(
+                    group,
+                    units_args_for_group,
+                    dependencies,
+                    kubeconfig,
+                    dry_run,
+                )?;
             }
         }
     }
