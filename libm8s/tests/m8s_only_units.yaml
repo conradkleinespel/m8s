@@ -35,3 +35,7 @@ units:
       namespace: test-namespace
       chartName: chart/name
       chartVersion: 1.33.7
+  foobarGroup:
+    group:
+      foobarGroupNoop:
+        noop: ""

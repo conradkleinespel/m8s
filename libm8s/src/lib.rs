@@ -1,7 +1,8 @@
 use crate::file_format::{Unit, UnitWithDependencies};
 use file_format::Config;
+use indexmap::IndexMap;
 use log::{debug, info};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 pub mod file_format;
@@ -35,7 +36,19 @@ pub fn parse_deployment_file(deployment_file_path: &str) -> io::Result<Config> {
         .parent()
         .unwrap_or(Path::new("."))
         .to_path_buf();
-    for (_, UnitWithDependencies { unit, .. }) in config.units.as_mut_slice() {
+
+    integrate_deployment_file_dir_into_paths(&mut config.units, deployment_file_dir);
+
+    debug!("Configuration: {:?}", config);
+
+    Ok(config)
+}
+
+fn integrate_deployment_file_dir_into_paths(
+    units: &mut IndexMap<String, UnitWithDependencies>,
+    deployment_file_dir: PathBuf,
+) {
+    for (_, UnitWithDependencies { unit, .. }) in units {
         match unit {
             Unit::Shell { .. } => {}
             Unit::Manifest { ref mut manifest } => {
@@ -70,11 +83,10 @@ pub fn parse_deployment_file(deployment_file_path: &str) -> io::Result<Config> {
                 new_chart_path.push(helm_local.chart_path.clone());
                 helm_local.chart_path = new_chart_path.to_string_lossy().to_string();
             }
+            Unit::Group { ref mut group } => {
+                integrate_deployment_file_dir_into_paths(group, deployment_file_dir.clone());
+            }
             Unit::Noop { .. } => {}
         }
     }
-
-    debug!("Configuration: {:?}", config);
-
-    Ok(config)
 }

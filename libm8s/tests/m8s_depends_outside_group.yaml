@@ -1,0 +1,11 @@
+---
+units:
+  helloWorld:
+    noop: ""
+  foobarGroup:
+    group:
+      foobazNoop:
+        noop: ""
+        dependsOn:
+          - helloWorld
+          - foobarGroup

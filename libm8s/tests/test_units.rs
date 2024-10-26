@@ -11,6 +11,13 @@ fn test_run_units_goes_through_units_to_run_them() {
     let dry_run = true;
     assert_eq!(
         (),
-        run_units(config.units, vec![], skip_dependencies, kubeconfig, dry_run).unwrap()
+        run_units(
+            &config.units,
+            vec![],
+            skip_dependencies,
+            kubeconfig,
+            dry_run
+        )
+        .unwrap()
     );
 }

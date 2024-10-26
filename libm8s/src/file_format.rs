@@ -1,6 +1,6 @@
 use indexmap::{indexmap, IndexMap};
 use serde::Deserialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::{fs, io};
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -37,6 +37,10 @@ pub enum Unit {
     HelmRemote { helm_remote: HelmRemote },
     #[serde(rename_all = "camelCase")]
     HelmLocal { helm_local: HelmLocal },
+    #[serde(rename_all = "camelCase")]
+    Group {
+        group: IndexMap<String, UnitWithDependencies>,
+    },
     #[serde(rename_all = "camelCase")]
     Noop {
         #[allow(dead_code)]
@@ -147,7 +151,7 @@ fn test_analyse_cycles_returns_ok_when_no_cycle_is_detected() {
 
 pub fn check_dependency_cycles(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
     let mut dependencies_by_unit_key = IndexMap::new();
-    for (unit_key, unit) in units {
+    for (unit_key, unit) in units.iter() {
         dependencies_by_unit_key.insert(
             unit_key.clone(),
             unit.depends_on.clone().unwrap_or(Vec::new()),
@@ -285,6 +289,9 @@ pub fn check_files_exist(units: &IndexMap<String, UnitWithDependencies>) -> io::
                     ));
                 }
             }
+            Unit::Group { group } => {
+                check_files_exist(group)?;
+            }
             Unit::Noop { .. } => {}
         }
     }
@@ -292,31 +299,11 @@ pub fn check_files_exist(units: &IndexMap<String, UnitWithDependencies>) -> io::
 }
 
 pub fn check_invalid_unit_keys(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
-    let unit_keys: Vec<String> = units
-        .iter()
-        .map(|(unit_key, _)| unit_key.to_string())
-        .collect();
-
-    let depends_on_unit_keys: Vec<String> = units
-        .iter()
-        .map(|(_, unit_with_dependencies)| {
-            unit_with_dependencies
-                .depends_on
-                .clone()
-                .unwrap_or(Vec::new())
-        })
-        .flatten()
-        .collect();
-
-    let depends_on_unit_keys_invalid = depends_on_unit_keys
-        .iter()
-        .filter(|item| !unit_keys.contains(item))
-        .map(|item| item.to_string())
-        .collect::<Vec<String>>()
-        .into_iter();
+    let depends_on_unit_keys_invalid = get_invalid_unit_keys_for_group(units);
 
     // Deduplicate invalid unit keys that appear multiple times
     let mut depends_on_unit_keys_invalid = depends_on_unit_keys_invalid
+        .into_iter()
         .collect::<HashSet<_>>()
         .into_iter()
         .collect::<Vec<String>>();
@@ -333,4 +320,71 @@ pub fn check_invalid_unit_keys(units: &IndexMap<String, UnitWithDependencies>) -
         ));
     }
     Ok(())
+}
+
+fn get_invalid_unit_keys_for_group(units: &IndexMap<String, UnitWithDependencies>) -> Vec<String> {
+    let unit_keys: Vec<String> = units.keys().map(|k| k.to_string()).collect();
+    let depends_on_unit_keys: Vec<String> = units
+        .iter()
+        .map(|(_, unit)| unit.depends_on.clone().unwrap_or(Vec::new()).clone())
+        .flatten()
+        .collect();
+
+    let mut depends_on_unit_keys_invalid = depends_on_unit_keys
+        .iter()
+        .filter(|item| !unit_keys.contains(item))
+        .map(|item| item.to_string())
+        .collect::<Vec<String>>();
+
+    for (_, unit) in units {
+        match &unit.unit {
+            Unit::Group { group } => {
+                depends_on_unit_keys_invalid.extend(get_invalid_unit_keys_for_group(group))
+            }
+            _ => {}
+        }
+    }
+
+    depends_on_unit_keys_invalid
+}
+
+pub fn check_duplicate_unit_keys(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
+    let unit_keys = get_unit_keys_for_group(units);
+    let mut counts = HashMap::new();
+    for item in unit_keys.clone() {
+        *counts.entry(item).or_insert(0) += 1;
+    }
+
+    let mut duplicate_unit_keys: Vec<String> = unit_keys
+        .into_iter()
+        .filter(|item| counts[item] > 1)
+        .collect::<Vec<String>>()
+        .into_iter()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect::<Vec<String>>();
+    duplicate_unit_keys.sort();
+
+    if duplicate_unit_keys.len() > 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "Configuration is invalid, duplicate keys: {}",
+                duplicate_unit_keys.join(", ")
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn get_unit_keys_for_group(units: &IndexMap<String, UnitWithDependencies>) -> Vec<String> {
+    let mut unit_keys: Vec<String> = units.keys().map(|k| k.to_string()).collect();
+    for (_, unit) in units {
+        match &unit.unit {
+            Unit::Group { group } => unit_keys.extend(get_unit_keys_for_group(group)),
+            _ => {}
+        }
+    }
+
+    unit_keys
 }

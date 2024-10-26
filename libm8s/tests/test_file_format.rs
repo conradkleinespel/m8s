@@ -1,6 +1,6 @@
 use libm8s::file_format::{
-    check_dependency_cycles, check_invalid_unit_keys, Config, HelmRepository, Unit,
-    UnitWithDependencies,
+    check_dependency_cycles, check_duplicate_unit_keys, check_invalid_unit_keys, Config,
+    HelmRepository, Unit, UnitWithDependencies,
 };
 
 #[test]
@@ -64,12 +64,40 @@ fn test_check_dependency_cycles_fails_with_two_dependencies_that_depends_on_each
 
 #[test]
 fn test_check_invalid_unit_keys_fails_when_one_or_more_dependencies_do_not_exist() {
-    let test_file_yaml = include_str!("m8s_invalid_dependency.yaml");
+    let test_file_yaml = include_str!("m8s_depends_not_exists.yaml");
 
     let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
     assert_eq!(
         "Configuration is invalid, invalid dependencies: doesNotExist1, doesNotExist2",
         check_invalid_unit_keys(&config.units)
+            .err()
+            .unwrap()
+            .to_string()
+    );
+}
+
+#[test]
+fn test_check_invalid_unit_keys_fails_when_a_dependency_refers_to_outside_group() {
+    let test_file_yaml = include_str!("m8s_depends_outside_group.yaml");
+
+    let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
+    assert_eq!(
+        "Configuration is invalid, invalid dependencies: foobarGroup, helloWorld",
+        check_invalid_unit_keys(&config.units)
+            .err()
+            .unwrap()
+            .to_string()
+    );
+}
+
+#[test]
+fn test_check_duplicate_unit_keys_fails_when_a_group_duplicates_a_key() {
+    let test_file_yaml = include_str!("m8s_duplicate_key.yaml");
+
+    let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
+    assert_eq!(
+        "Configuration is invalid, duplicate keys: baz, foo",
+        check_duplicate_unit_keys(&config.units)
             .err()
             .unwrap()
             .to_string()

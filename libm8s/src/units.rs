@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::io;
 
 pub fn run_units(
-    units: IndexMap<String, UnitWithDependencies>,
+    units: &IndexMap<String, UnitWithDependencies>,
     units_args: Vec<String>,
     dependencies: bool,
     kubeconfig: Option<&String>,
@@ -14,12 +14,16 @@ pub fn run_units(
 ) -> io::Result<()> {
     info!("Running units...");
 
-    let units = get_filtered_units(units, units_args, dependencies, &mut HashSet::new());
-    debug!("Units filtered based on config: {:?}", units);
-    let units = reorder_units_from_dependencies(units, dependencies);
-    debug!("Units filtered and re-ordered based on config: {:?}", units);
+    let filtered_units =
+        get_filtered_units(units, units_args.clone(), dependencies, &mut HashSet::new());
+    debug!("Units filtered based on config: {:?}", filtered_units);
+    let ordered_units = reorder_units_from_dependencies(filtered_units, dependencies);
+    debug!(
+        "Units filtered and re-ordered based on config: {:?}",
+        ordered_units
+    );
 
-    for (unit_key, UnitWithDependencies { unit, .. }) in units.iter() {
+    for (unit_key, UnitWithDependencies { unit, .. }) in ordered_units.iter() {
         debug!("Running unit {} = {:?}", unit_key, unit);
         match unit {
             Unit::Noop { noop: _ } => {}
@@ -34,6 +38,9 @@ pub fn run_units(
             }
             Unit::HelmLocal { helm_local } => {
                 run_unit_helm_local(dry_run, helm_local, kubeconfig)?;
+            }
+            Unit::Group { group } => {
+                run_units(group, units_args.clone(), dependencies, kubeconfig, dry_run)?;
             }
         }
     }
@@ -71,7 +78,7 @@ fn reorder_units_from_dependencies(
 }
 
 fn get_filtered_units(
-    units: IndexMap<String, UnitWithDependencies>,
+    units: &IndexMap<String, UnitWithDependencies>,
     units_args: Vec<String>,
     dependencies: bool,
     visited: &mut HashSet<String>,
@@ -161,12 +168,7 @@ fn test_get_filtered_units_returns_units_recursively_based_on_dependencies_param
                 depends_on: None,
             },
         },
-        get_filtered_units(
-            units.clone(),
-            vec!["c".to_string()],
-            true,
-            &mut HashSet::new()
-        )
+        get_filtered_units(&units, vec!["c".to_string()], true, &mut HashSet::new())
     );
 
     assert_eq!(
@@ -178,12 +180,7 @@ fn test_get_filtered_units_returns_units_recursively_based_on_dependencies_param
                 depends_on: Some(vec!["b".to_string()]),
             },
         },
-        get_filtered_units(
-            units.clone(),
-            vec!["c".to_string()],
-            false,
-            &mut HashSet::new()
-        )
+        get_filtered_units(&units, vec!["c".to_string()], false, &mut HashSet::new())
     );
 }
 

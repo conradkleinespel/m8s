@@ -1,0 +1,12 @@
+---
+units:
+  foo:
+    noop: ""
+  bar:
+    group:
+      foo:
+        noop: ""
+      baz:
+        group:
+          baz:
+            noop: ""
