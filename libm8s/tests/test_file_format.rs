@@ -1,5 +1,5 @@
 use libm8s::file_format::{
-    check_dependency_cycles, check_duplicate_unit_keys, check_invalid_unit_keys, Config,
+    check_dependency_cycles, check_invalid_unit_keys, check_unit_keys_format, Config,
     HelmRepository, Unit, UnitWithDependencies,
 };
 
@@ -91,13 +91,13 @@ fn test_check_invalid_unit_keys_fails_when_a_dependency_refers_to_outside_group(
 }
 
 #[test]
-fn test_check_duplicate_unit_keys_fails_when_a_group_duplicates_a_key() {
-    let test_file_yaml = include_str!("m8s_duplicate_key.yaml");
+fn test_check_unit_keys_format_fails_when_key_is_not_alphanumeric() {
+    let test_file_yaml = include_str!("m8s_invalid_key_format.yaml");
 
     let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
     assert_eq!(
-        "Configuration is invalid, duplicate keys: baz, foo",
-        check_duplicate_unit_keys(&config.units)
+        "Configuration is invalid, unit key can only contain [a-zA-Z0-9]: not:valid",
+        check_unit_keys_format(&config.units)
             .err()
             .unwrap()
             .to_string()

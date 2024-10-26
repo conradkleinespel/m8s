@@ -30,7 +30,7 @@ pub fn execute_up_command(
     let deployment_file_path = file.unwrap_or("m8s.yaml".to_string());
     let config = libm8s::parse_deployment_file(deployment_file_path.as_str())?;
 
-    libm8s::file_format::check_duplicate_unit_keys(&config.units)?;
+    libm8s::file_format::check_unit_keys_format(&config.units)?;
     libm8s::file_format::check_invalid_unit_keys(&config.units)?;
     libm8s::file_format::check_dependency_cycles(&config.units)?;
     libm8s::file_format::check_files_exist(&config.units)?;

@@ -1,6 +1,6 @@
 use indexmap::{indexmap, IndexMap};
 use serde::Deserialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::{fs, io};
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -348,43 +348,25 @@ fn get_invalid_unit_keys_for_group(units: &IndexMap<String, UnitWithDependencies
     depends_on_unit_keys_invalid
 }
 
-pub fn check_duplicate_unit_keys(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
-    let unit_keys = get_unit_keys_for_group(units);
-    let mut counts = HashMap::new();
-    for item in unit_keys.clone() {
-        *counts.entry(item).or_insert(0) += 1;
-    }
+pub fn check_unit_keys_format(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
+    for (unit_key, unit) in units {
+        if !is_unit_key_format_valid(unit_key.as_str()) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Configuration is invalid, unit key can only contain [a-zA-Z0-9]: {}",
+                    unit_key
+                ),
+            ));
+        }
 
-    let mut duplicate_unit_keys: Vec<String> = unit_keys
-        .into_iter()
-        .filter(|item| counts[item] > 1)
-        .collect::<Vec<String>>()
-        .into_iter()
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect::<Vec<String>>();
-    duplicate_unit_keys.sort();
-
-    if duplicate_unit_keys.len() > 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!(
-                "Configuration is invalid, duplicate keys: {}",
-                duplicate_unit_keys.join(", ")
-            ),
-        ));
+        if let Unit::Group { ref group } = unit.unit {
+            check_unit_keys_format(group)?;
+        }
     }
     Ok(())
 }
 
-fn get_unit_keys_for_group(units: &IndexMap<String, UnitWithDependencies>) -> Vec<String> {
-    let mut unit_keys: Vec<String> = units.keys().map(|k| k.to_string()).collect();
-    for (_, unit) in units {
-        match &unit.unit {
-            Unit::Group { group } => unit_keys.extend(get_unit_keys_for_group(group)),
-            _ => {}
-        }
-    }
-
-    unit_keys
+fn is_unit_key_format_valid(key: &str) -> bool {
+    key.chars().all(|c| c.is_ascii_alphanumeric())
 }
