@@ -44,20 +44,20 @@ impl OptionHelmRepositories {
 
 #[derive(Args)]
 #[group(multiple = false)]
-struct OptionUnits {
+struct OptionResources {
     /// Update the Kubernetes resources (aka `kubectl apply`, `helm install`, etc)
     #[arg(long)]
-    units: bool,
+    resources: bool,
     #[arg(long)]
-    no_units: bool,
+    no_resources: bool,
 }
 
-impl OptionUnits {
+impl OptionResources {
     fn get_value(&self) -> bool {
-        if self.units {
+        if self.resources {
             return true;
         }
-        if self.no_units {
+        if self.no_resources {
             return false;
         }
         true
@@ -67,7 +67,7 @@ impl OptionUnits {
 #[derive(Args)]
 #[group(multiple = false)]
 struct OptionDependencies {
-    /// Run units and their dependencies, requires UNITS
+    /// Run resources and their dependencies, requires RESOURCES
     #[arg(long)]
     dependencies: bool,
     #[arg(long)]
@@ -90,8 +90,8 @@ impl OptionDependencies {
 enum Command {
     /// Deploys resources using the current k8s config context
     Up {
-        #[arg(name = "UNITS")]
-        units_args: Vec<String>,
+        #[arg(name = "RESOURCES")]
+        resources_args: Vec<String>,
         /// Path to the deployment file in YAML format
         #[arg(short, long)]
         file: Option<String>,
@@ -104,7 +104,7 @@ enum Command {
         #[clap(flatten)]
         helm_repositories: OptionHelmRepositories,
         #[clap(flatten)]
-        units: OptionUnits,
+        resources: OptionResources,
         #[clap(flatten)]
         dependencies: OptionDependencies,
         /// Show logs but do not actually apply changes
@@ -121,13 +121,13 @@ impl Cli {
 
         match args.command {
             Command::Up {
-                units_args,
+                resources_args,
                 global_options,
                 file,
                 directory,
                 kubeconfig,
                 helm_repositories,
-                units,
+                resources,
                 dependencies,
                 dry_run,
             } => {
@@ -136,11 +136,11 @@ impl Cli {
                 }
                 utils::with_directory(directory, || {
                     let cmd = CommandUp {
-                        units_args,
+                        resources_args,
                         file: file.clone(),
                         kubeconfig: kubeconfig.clone(),
                         helm_repositories,
-                        units,
+                        resources: resources,
                         dependencies,
                         dry_run,
                     };

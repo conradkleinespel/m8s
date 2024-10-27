@@ -1,7 +1,8 @@
 ---
 
-helmRepositories:
-  - name: test
-    url: https://example.com
+helm:
+  repositories:
+    - name: test
+      url: https://example.com
 
-units: {}
+resources: {}

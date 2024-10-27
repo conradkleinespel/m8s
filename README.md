@@ -20,11 +20,12 @@
 
 ```yaml
 ---
-helmRepositories:
-  - name: ingress-nginx
-    url: https://kubernetes.github.io/ingress-nginx
+helm:
+  repositories:
+    - name: ingress-nginx
+      url: https://kubernetes.github.io/ingress-nginx
 
-units:
+resources:
   myCustomManifest:
     manifest:
       path: path/to/my-custom-manifest.yaml
@@ -45,51 +46,51 @@ Then, call `m8s up` and `m8s` will run `kubectl`, `helm`, and other tools as nee
 
 ## In-depth documentation
 
-The `m8s.yaml` file is the configuration file for `m8s`. It defines the Helm chart, Kubernetes manifests and other resources to be deployed. It has two main parts: Helm repositories and units aka as resources to be deployed to Kubernetes.
+The `m8s.yaml` file is the configuration file for `m8s`. It defines the Helm chart, Kubernetes manifests and other resources to be deployed. It has two main parts: Helm configuration and resources to be deployed to Kubernetes.
 
 ### Helm repositories
 
-To define Helm repositories, add a `helmRepositories` section in `m8s.yaml`:
+To define Helm repositories, add a `helm.repositories` section in `m8s.yaml`:
 
 ```yaml
-helmRepositories:
-  - name: <repository_name>
-    url: <repository_url>
+helm:
+  repositories:
+    - name: <repository_name>
+      url: <repository_url>
 ```
 
 A more concrete example would be:
 
 ```yaml
-helmRepositories:
-  - name: ingress-nginx
-    url: https://kubernetes.github.io/ingress-nginx
+helm:
+  repositories:
+    - name: ingress-nginx
+      url: https://kubernetes.github.io/ingress-nginx
 ```
 
-### Units
+### Resources
 
-What `m8s` calls "units" is YAML code that defines what resources to deploy to Kubernetes.
-
-You can define units in the `units` section of `m8s.yaml`:
+You can define resources to be deployed in your Kubernetes cluster in the `resources` section of `m8s.yaml`:
 
 ```yaml
-units:
-  <unit_name>:
-    <unit_type>:
-      <unit_option_a>: <value>
-      <unit_option_b>: <value>
-      <unit_option_c>: <value>
+resources:
+  <resource_name>:
+    <resource_type>:
+      <resource_option_a>: <value>
+      <resource_option_b>: <value>
+      <resource_option_c>: <value>
 ```
 
-There are various unit types. You can ask `m8s` to deploy Helm charts, to run shell scripts and more. Below is the documentation for each of those unit types.
+There are various resource types. You can ask `m8s` to deploy Helm charts, to run shell scripts and more. Below is the documentation for each of those resource types.
 
 #### Kubernetes manifest
 
 `m8s` can apply Kubernetes manifests using `kubectl apply -f`.
 
 ```yaml
-units:
+resources:
   # Structure
-  <unit_name>:
+  <resource_name>:
     manifest:
       path: <manifest_path>
 
@@ -106,11 +107,11 @@ units:
 The shell script is passed to `bash -c "..."`.
 
 ```yaml
-units:
+resources:
   # Structure
-  <unit_name>:
+  <resource_name>:
     shell:
-      unit: <shell_script_as_string>
+      input: <shell_script_as_string>
       
   # Concrete example
   myCustomSecret:
@@ -130,20 +131,21 @@ units:
 
 #### Remote Helm chart
 
-`m8s` can deploy Helm charts hosted on a remote repository, defined in the `helmRepositories` section.
+`m8s` can deploy Helm charts hosted on a remote repository, defined in the `helm.repositories` section.
 
 ```yaml
-helmRepositories:
-  # Structure
-  - name: <repo_name>
-    url: <repo_url>
-  # Concrete example
-  - name: ingress-nginx
-    url: https://kubernetes.github.io/ingress-nginx
+helm:
+  repositories:
+    # Structure
+    - name: <repo_name>
+      url: <repo_url>
+    # Concrete example
+    - name: ingress-nginx
+      url: https://kubernetes.github.io/ingress-nginx
 
-units:
+resources:
   # Structure
-  <unit_name>:
+  <resource_name>:
     helmRemote:
       name: <helm_release_name>
       namespace: <kubernetes_namespace>
@@ -169,9 +171,9 @@ units:
 `m8s` can deploy Helm charts that live in a directory on your disk.
 
 ```yaml
-units:
+resources:
   # Structure
-  <unit_name>:
+  <resource_name>:
     helmLocal:
       name: <helm_release_name>
       namespace: <kubernetes_namespace>
@@ -190,19 +192,19 @@ units:
         - path/to/values-ingress-nginx.yaml
 ```
 
-#### Unit group
+#### Resource group
 
-`m8s` allows grouping units into groups. This is particularly handy when defining dependencies on complex resources.
+`m8s` allows grouping resources into groups. This is particularly handy when you need to define dependencies on complex resources.
 
 ```yaml
-units:
+resources:
   # Structure
-  <unit_name_for_group>:
+  <resource_name_for_group>:
     group:
-      <unit_name_a>:
-        <unit_options>:
-      <unit_name_b>:
-        <unit_options>:
+      <resource_name_a>:
+        <resource_options>:
+      <resource_name_b>:
+        <resource_options>:
 
   # Concrete example
   webApplicationBase:
@@ -227,12 +229,12 @@ units:
 
 #### Noop
 
-`m8s` allows defining units that are no-ops. This can sometimes come in handy.
+`m8s` allows defining resources that are no-ops. This can sometimes come in handy. It is there just in case.
 
 ```yaml
-units:
+resources:
   # Structure
-  <unit_name>:
+  <resource_name>:
     noop: ""
 
   # Concrete example

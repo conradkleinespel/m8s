@@ -1,5 +1,5 @@
 ---
-units:
+resources:
   foobarNoop:
     noop: ""
   foobarShell:

@@ -1,17 +1,17 @@
 use libm8s::file_format::{
-    check_dependency_cycles, check_invalid_unit_keys, check_unit_keys_format, Config,
-    HelmRepository, Unit, UnitWithDependencies,
+    check_dependency_cycles, check_invalid_resource_keys, check_resource_keys_format, Config,
+    HelmRepository, Resource, ResourceWithDepdencies,
 };
 
 #[test]
-fn test_parse_succeeds_with_only_units() {
-    let test_file_yaml = include_str!("m8s_only_units.yaml");
+fn test_parse_succeeds_with_only_resources() {
+    let test_file_yaml = include_str!("m8s_only_resources.yaml");
 
     let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
     assert_eq!(
-        config.units.get("foobarNoop").unwrap(),
-        &UnitWithDependencies {
-            unit: Unit::Noop {
+        config.resources.get("foobarNoop").unwrap(),
+        &ResourceWithDepdencies {
+            resource: Resource::Noop {
                 noop: "".to_string()
             },
             depends_on: None
@@ -20,13 +20,25 @@ fn test_parse_succeeds_with_only_units() {
 }
 
 #[test]
-fn test_parse_succeeds_with_units_and_repositories() {
-    let test_file_yaml = include_str!("m8s_units_and_repositories.yaml");
+fn test_parse_succeeds_with_resources_and_repositories() {
+    let test_file_yaml = include_str!("m8s_resources_and_repositories.yaml");
 
     let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
-    assert_eq!(config.helm_repositories.clone().unwrap().len(), 1usize);
     assert_eq!(
-        config.helm_repositories.clone().unwrap()[0],
+        config
+            .helm
+            .as_ref()
+            .and_then(|helm| helm.repositories.clone())
+            .unwrap()
+            .len(),
+        1usize
+    );
+    assert_eq!(
+        config
+            .helm
+            .as_ref()
+            .and_then(|helm| helm.repositories.clone())
+            .unwrap()[0],
         HelmRepository {
             name: "argo".to_string(),
             url: "https://argoproj.github.io/argo-helm".to_string()
@@ -35,13 +47,13 @@ fn test_parse_succeeds_with_units_and_repositories() {
 }
 
 #[test]
-fn test_check_dependency_cycles_fails_with_a_single_unit_which_depends_on_itself() {
+fn test_check_dependency_cycles_fails_with_a_single_resource_which_depends_on_itself() {
     let test_file_yaml = include_str!("m8s_cycle_on_self.yaml");
 
     let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
     assert_eq!(
         "Configuration is invalid, dependency cycle for \"foobarNoop\": foobarNoop -> foobarNoop",
-        check_dependency_cycles(&config.units)
+        check_dependency_cycles(&config.resources)
             .err()
             .unwrap()
             .to_string()
@@ -55,7 +67,7 @@ fn test_check_dependency_cycles_fails_with_two_dependencies_that_depends_on_each
     let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
     assert_eq!(
         "Configuration is invalid, dependency cycle for \"foobarNoop\": foobarNoop -> foobazNoop -> foobarNoop",
-        check_dependency_cycles(&config.units)
+        check_dependency_cycles(&config.resources)
             .err()
             .unwrap()
             .to_string()
@@ -63,13 +75,13 @@ fn test_check_dependency_cycles_fails_with_two_dependencies_that_depends_on_each
 }
 
 #[test]
-fn test_check_invalid_unit_keys_fails_when_one_or_more_dependencies_do_not_exist() {
+fn test_check_invalid_resource_keys_fails_when_one_or_more_dependencies_do_not_exist() {
     let test_file_yaml = include_str!("m8s_depends_not_exists.yaml");
 
     let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
     assert_eq!(
         "Configuration is invalid, invalid dependencies: doesNotExist1, doesNotExist2",
-        check_invalid_unit_keys(&config.units)
+        check_invalid_resource_keys(&config.resources)
             .err()
             .unwrap()
             .to_string()
@@ -77,13 +89,13 @@ fn test_check_invalid_unit_keys_fails_when_one_or_more_dependencies_do_not_exist
 }
 
 #[test]
-fn test_check_invalid_unit_keys_fails_when_a_dependency_refers_to_outside_group() {
+fn test_check_invalid_resource_keys_fails_when_a_dependency_refers_to_outside_group() {
     let test_file_yaml = include_str!("m8s_depends_outside_group.yaml");
 
     let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
     assert_eq!(
         "Configuration is invalid, invalid dependencies: foobarGroup, helloWorld",
-        check_invalid_unit_keys(&config.units)
+        check_invalid_resource_keys(&config.resources)
             .err()
             .unwrap()
             .to_string()
@@ -91,13 +103,13 @@ fn test_check_invalid_unit_keys_fails_when_a_dependency_refers_to_outside_group(
 }
 
 #[test]
-fn test_check_unit_keys_format_fails_when_key_is_not_alphanumeric() {
+fn test_check_resource_keys_format_fails_when_key_is_not_alphanumeric() {
     let test_file_yaml = include_str!("m8s_invalid_key_format.yaml");
 
     let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
     assert_eq!(
-        "Configuration is invalid, unit key can only contain [a-zA-Z0-9]: not:valid",
-        check_unit_keys_format(&config.units)
+        "Configuration is invalid, resource key can only contain [a-zA-Z0-9]: not:valid",
+        check_resource_keys_format(&config.resources)
             .err()
             .unwrap()
             .to_string()

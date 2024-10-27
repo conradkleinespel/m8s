@@ -6,8 +6,14 @@ use std::{fs, io};
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
-    pub helm_repositories: Option<Vec<HelmRepository>>,
-    pub units: IndexMap<String, UnitWithDependencies>,
+    pub helm: Option<Helm>,
+    pub resources: IndexMap<String, ResourceWithDepdencies>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Helm {
+    pub repositories: Option<Vec<HelmRepository>>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -19,16 +25,16 @@ pub struct HelmRepository {
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct UnitWithDependencies {
+pub struct ResourceWithDepdencies {
     #[serde(flatten)]
-    pub unit: Unit,
+    pub resource: Resource,
     pub depends_on: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
 #[serde(rename_all = "camelCase")]
-pub enum Unit {
+pub enum Resource {
     #[serde(rename_all = "camelCase")]
     Shell { shell: Shell },
     #[serde(rename_all = "camelCase")]
@@ -39,7 +45,7 @@ pub enum Unit {
     HelmLocal { helm_local: HelmLocal },
     #[serde(rename_all = "camelCase")]
     Group {
-        group: IndexMap<String, UnitWithDependencies>,
+        group: IndexMap<String, ResourceWithDepdencies>,
     },
     #[serde(rename_all = "camelCase")]
     Noop {
@@ -82,25 +88,25 @@ pub struct HelmLocal {
 /// Looks for cycles using a depth-first approach
 /// See: https://en.wikipedia.org/wiki/Depth-first_search#Pseudocode
 fn analyse_cycles(
-    unit_key: &String,
-    dependencies_by_unit_key: &IndexMap<String, Vec<String>>,
+    resource_key: &String,
+    dependencies_by_resource_key: &IndexMap<String, Vec<String>>,
     visited: &mut HashSet<String>,
     stack: &mut Vec<String>,
 ) -> Result<(), Vec<String>> {
-    if stack.contains(unit_key) {
-        stack.push(unit_key.to_string());
+    if stack.contains(resource_key) {
+        stack.push(resource_key.to_string());
         return Err(stack.clone());
     }
-    if visited.contains(unit_key) {
+    if visited.contains(resource_key) {
         return Ok(());
     }
 
-    visited.insert(unit_key.to_string());
-    stack.push(unit_key.to_string());
+    visited.insert(resource_key.to_string());
+    stack.push(resource_key.to_string());
 
-    if let Some(neighbors) = dependencies_by_unit_key.get(unit_key) {
+    if let Some(neighbors) = dependencies_by_resource_key.get(resource_key) {
         for neighbor in neighbors {
-            analyse_cycles(neighbor, dependencies_by_unit_key, visited, stack)?;
+            analyse_cycles(neighbor, dependencies_by_resource_key, visited, stack)?;
         }
     }
 
@@ -149,19 +155,21 @@ fn test_analyse_cycles_returns_ok_when_no_cycle_is_detected() {
     );
 }
 
-pub fn check_dependency_cycles(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
-    let mut dependencies_by_unit_key = IndexMap::new();
-    for (unit_key, unit) in units.iter() {
-        dependencies_by_unit_key.insert(
-            unit_key.clone(),
-            unit.depends_on.clone().unwrap_or(Vec::new()),
+pub fn check_dependency_cycles(
+    resources: &IndexMap<String, ResourceWithDepdencies>,
+) -> io::Result<()> {
+    let mut dependencies_by_resource_key = IndexMap::new();
+    for (resource_key, resource) in resources.iter() {
+        dependencies_by_resource_key.insert(
+            resource_key.clone(),
+            resource.depends_on.clone().unwrap_or(Vec::new()),
         );
     }
 
-    for unit_key in dependencies_by_unit_key.keys() {
+    for resource_key in dependencies_by_resource_key.keys() {
         if let Err(cycle) = analyse_cycles(
-            unit_key,
-            &dependencies_by_unit_key,
+            resource_key,
+            &dependencies_by_resource_key,
             &mut HashSet::new(),
             &mut Vec::new(),
         ) {
@@ -169,7 +177,7 @@ pub fn check_dependency_cycles(units: &IndexMap<String, UnitWithDependencies>) -
                 io::ErrorKind::InvalidData,
                 format!(
                     "Configuration is invalid, dependency cycle for \"{}\": {}",
-                    unit_key,
+                    resource_key,
                     cycle.join(" -> ")
                 ),
             ));
@@ -178,39 +186,39 @@ pub fn check_dependency_cycles(units: &IndexMap<String, UnitWithDependencies>) -
     Ok(())
 }
 
-fn create_file_not_exists_error(unit_key: &str, path: &str) -> io::Error {
+fn create_file_not_exists_error(resource_key: &str, path: &str) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidData,
         format!(
-            "Invalid unit {}, references file that doesn't exist: {}",
-            unit_key, path
+            "Invalid resource {}, references file that doesn't exist: {}",
+            resource_key, path
         ),
     )
 }
 
-fn create_directory_not_exists_error(unit_key: &str, path: &str) -> io::Error {
+fn create_directory_not_exists_error(resource_key: &str, path: &str) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidData,
         format!(
-            "Invalid unit {}, references directory that doesn't exist: {}",
-            unit_key, path
+            "Invalid resource {}, references directory that doesn't exist: {}",
+            resource_key, path
         ),
     )
 }
 
 pub fn check_helm_remote_repositories(
-    units: &IndexMap<String, UnitWithDependencies>,
+    resources: &IndexMap<String, ResourceWithDepdencies>,
     helm_repositories: &Option<Vec<HelmRepository>>,
 ) -> io::Result<()> {
-    for (unit_key, UnitWithDependencies { unit, .. }) in units {
-        match unit {
-            Unit::HelmRemote { helm_remote } => match helm_remote.chart_name.split_once("/") {
+    for (resource_key, ResourceWithDepdencies { resource, .. }) in resources {
+        match resource {
+            Resource::HelmRemote { helm_remote } => match helm_remote.chart_name.split_once("/") {
                 None => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         format!(
-                        "Invalid unit {}, chart name \"{}\" doesn't start with a repository name",
-                        unit_key, helm_remote.chart_name
+                        "Invalid resource {}, chart name \"{}\" doesn't start with a repository name",
+                        resource_key, helm_remote.chart_name
                     ),
                     ))
                 }
@@ -219,8 +227,8 @@ pub fn check_helm_remote_repositories(
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
                             format!(
-                                "Invalid unit {}, repository with name \"{}\" doesn't exist, no repositories configured",
-                                unit_key, repository_name
+                                "Invalid resource {}, repository with name \"{}\" doesn't exist, no repositories configured",
+                                resource_key, repository_name
                             ),
                         ))
                     }
@@ -234,8 +242,8 @@ pub fn check_helm_remote_repositories(
                             return Err(io::Error::new(
                                 io::ErrorKind::InvalidData,
                                 format!(
-                                    "Invalid unit {}, repository with name \"{}\" doesn't exist, valid values are [{}]",
-                                    unit_key,
+                                    "Invalid resource {}, repository with name \"{}\" doesn't exist, valid values are [{}]",
+                                    resource_key,
                                     repository_name,
                                     helm_repositories.iter().map(|r| r.name.clone()).collect::<Vec<String>>().join(", ")
                                 ),
@@ -250,33 +258,33 @@ pub fn check_helm_remote_repositories(
     Ok(())
 }
 
-pub fn check_files_exist(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
-    for (unit_key, UnitWithDependencies { unit, .. }) in units {
-        match unit {
-            Unit::Shell { .. } => {}
-            Unit::Manifest { manifest, .. } => {
+pub fn check_files_exist(resources: &IndexMap<String, ResourceWithDepdencies>) -> io::Result<()> {
+    for (resource_key, ResourceWithDepdencies { resource, .. }) in resources {
+        match resource {
+            Resource::Shell { .. } => {}
+            Resource::Manifest { manifest, .. } => {
                 if fs::exists(manifest.path.as_str())? == false {
                     return Err(create_file_not_exists_error(
-                        unit_key.as_str(),
+                        resource_key.as_str(),
                         manifest.path.as_str(),
                     ));
                 }
             }
-            Unit::HelmRemote { helm_remote } => {
+            Resource::HelmRemote { helm_remote } => {
                 for value in helm_remote.values.clone().unwrap_or(Vec::new()) {
                     if fs::exists(value.as_str())? == false {
                         return Err(create_file_not_exists_error(
-                            unit_key.as_str(),
+                            resource_key.as_str(),
                             value.as_str(),
                         ));
                     }
                 }
             }
-            Unit::HelmLocal { helm_local } => {
+            Resource::HelmLocal { helm_local } => {
                 for value in helm_local.values.clone().unwrap_or(Vec::new()) {
                     if fs::exists(value.as_str())? == false {
                         return Err(create_file_not_exists_error(
-                            unit_key.as_str(),
+                            resource_key.as_str(),
                             value.as_str(),
                         ));
                     }
@@ -284,89 +292,95 @@ pub fn check_files_exist(units: &IndexMap<String, UnitWithDependencies>) -> io::
 
                 if fs::exists(helm_local.chart_path.as_str())? == false {
                     return Err(create_directory_not_exists_error(
-                        unit_key.as_str(),
+                        resource_key.as_str(),
                         helm_local.chart_path.as_str(),
                     ));
                 }
             }
-            Unit::Group { group } => {
+            Resource::Group { group } => {
                 check_files_exist(group)?;
             }
-            Unit::Noop { .. } => {}
+            Resource::Noop { .. } => {}
         }
     }
     Ok(())
 }
 
-pub fn check_invalid_unit_keys(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
-    let depends_on_unit_keys_invalid = get_invalid_unit_keys_for_group(units);
+pub fn check_invalid_resource_keys(
+    resources: &IndexMap<String, ResourceWithDepdencies>,
+) -> io::Result<()> {
+    let depends_on_resource_keys_invalid = get_invalid_resource_keys_for_group(resources);
 
-    // Deduplicate invalid unit keys that appear multiple times
-    let mut depends_on_unit_keys_invalid = depends_on_unit_keys_invalid
+    // Deduplicate invalid resource keys that appear multiple times
+    let mut depends_on_resource_keys_invalid = depends_on_resource_keys_invalid
         .into_iter()
         .collect::<HashSet<_>>()
         .into_iter()
         .collect::<Vec<String>>();
 
-    depends_on_unit_keys_invalid.sort();
+    depends_on_resource_keys_invalid.sort();
 
-    if depends_on_unit_keys_invalid.len() > 0 {
+    if depends_on_resource_keys_invalid.len() > 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             format!(
                 "Configuration is invalid, invalid dependencies: {}",
-                depends_on_unit_keys_invalid.join(", ")
+                depends_on_resource_keys_invalid.join(", ")
             ),
         ));
     }
     Ok(())
 }
 
-fn get_invalid_unit_keys_for_group(units: &IndexMap<String, UnitWithDependencies>) -> Vec<String> {
-    let unit_keys: Vec<String> = units.keys().map(|k| k.to_string()).collect();
-    let depends_on_unit_keys: Vec<String> = units
+fn get_invalid_resource_keys_for_group(
+    resources: &IndexMap<String, ResourceWithDepdencies>,
+) -> Vec<String> {
+    let resource_keys: Vec<String> = resources.keys().map(|k| k.to_string()).collect();
+    let depends_on_resource_keys: Vec<String> = resources
         .iter()
-        .map(|(_, unit)| unit.depends_on.clone().unwrap_or(Vec::new()).clone())
+        .map(|(_, resource)| resource.depends_on.clone().unwrap_or(Vec::new()).clone())
         .flatten()
         .collect();
 
-    let mut depends_on_unit_keys_invalid = depends_on_unit_keys
+    let mut depends_on_resource_keys_invalid = depends_on_resource_keys
         .iter()
-        .filter(|item| !unit_keys.contains(item))
+        .filter(|item| !resource_keys.contains(item))
         .map(|item| item.to_string())
         .collect::<Vec<String>>();
 
-    for (_, unit) in units {
-        match &unit.unit {
-            Unit::Group { group } => {
-                depends_on_unit_keys_invalid.extend(get_invalid_unit_keys_for_group(group))
+    for (_, resource) in resources {
+        match &resource.resource {
+            Resource::Group { group } => {
+                depends_on_resource_keys_invalid.extend(get_invalid_resource_keys_for_group(group))
             }
             _ => {}
         }
     }
 
-    depends_on_unit_keys_invalid
+    depends_on_resource_keys_invalid
 }
 
-pub fn check_unit_keys_format(units: &IndexMap<String, UnitWithDependencies>) -> io::Result<()> {
-    for (unit_key, unit) in units {
-        if !is_unit_key_format_valid(unit_key.as_str()) {
+pub fn check_resource_keys_format(
+    resources: &IndexMap<String, ResourceWithDepdencies>,
+) -> io::Result<()> {
+    for (resource_key, resource) in resources {
+        if !is_resource_key_format_valid(resource_key.as_str()) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
-                    "Configuration is invalid, unit key can only contain [a-zA-Z0-9]: {}",
-                    unit_key
+                    "Configuration is invalid, resource key can only contain [a-zA-Z0-9]: {}",
+                    resource_key
                 ),
             ));
         }
 
-        if let Unit::Group { ref group } = unit.unit {
-            check_unit_keys_format(group)?;
+        if let Resource::Group { ref group } = resource.resource {
+            check_resource_keys_format(group)?;
         }
     }
     Ok(())
 }
 
-fn is_unit_key_format_valid(key: &str) -> bool {
+fn is_resource_key_format_valid(key: &str) -> bool {
     key.chars().all(|c| c.is_ascii_alphanumeric())
 }

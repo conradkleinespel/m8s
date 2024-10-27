@@ -1,0 +1,9 @@
+---
+helm:
+  repositories:
+    - name: argo
+      url: https://argoproj.github.io/argo-helm
+
+resources:
+  foobarNoop:
+    noop: ""

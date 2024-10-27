@@ -1,4 +1,4 @@
-use crate::file_format::{Unit, UnitWithDependencies};
+use crate::file_format::{Resource, ResourceWithDepdencies};
 use file_format::Config;
 use indexmap::IndexMap;
 use log::{debug, info};
@@ -7,7 +7,7 @@ use std::{fs, io};
 
 pub mod file_format;
 pub mod helm_repositories;
-pub mod units;
+pub mod resources;
 pub mod utils;
 
 pub fn parse_deployment_file(deployment_file_path: &str) -> io::Result<Config> {
@@ -37,7 +37,7 @@ pub fn parse_deployment_file(deployment_file_path: &str) -> io::Result<Config> {
         .unwrap_or(Path::new("."))
         .to_path_buf();
 
-    integrate_deployment_file_dir_into_paths(&mut config.units, deployment_file_dir);
+    integrate_deployment_file_dir_into_paths(&mut config.resources, deployment_file_dir);
 
     debug!("Configuration: {:?}", config);
 
@@ -45,19 +45,19 @@ pub fn parse_deployment_file(deployment_file_path: &str) -> io::Result<Config> {
 }
 
 fn integrate_deployment_file_dir_into_paths(
-    units: &mut IndexMap<String, UnitWithDependencies>,
+    resources: &mut IndexMap<String, ResourceWithDepdencies>,
     deployment_file_dir: PathBuf,
 ) {
-    for (_, UnitWithDependencies { unit, .. }) in units {
-        match unit {
-            Unit::Shell { .. } => {}
-            Unit::Manifest { ref mut manifest } => {
+    for (_, ResourceWithDepdencies { resource, .. }) in resources {
+        match resource {
+            Resource::Shell { .. } => {}
+            Resource::Manifest { ref mut manifest } => {
                 let mut new_path = deployment_file_dir.clone();
                 new_path.push(&manifest.path);
 
                 manifest.path = new_path.to_string_lossy().to_string();
             }
-            Unit::HelmRemote {
+            Resource::HelmRemote {
                 ref mut helm_remote,
             } => {
                 if let Some(ref mut values) = helm_remote.values {
@@ -69,7 +69,7 @@ fn integrate_deployment_file_dir_into_paths(
                     }
                 }
             }
-            Unit::HelmLocal { ref mut helm_local } => {
+            Resource::HelmLocal { ref mut helm_local } => {
                 if let Some(ref mut values) = helm_local.values {
                     for value in values.iter_mut() {
                         let mut new_path = deployment_file_dir.clone();
@@ -83,10 +83,10 @@ fn integrate_deployment_file_dir_into_paths(
                 new_chart_path.push(helm_local.chart_path.clone());
                 helm_local.chart_path = new_chart_path.to_string_lossy().to_string();
             }
-            Unit::Group { ref mut group } => {
+            Resource::Group { ref mut group } => {
                 integrate_deployment_file_dir_into_paths(group, deployment_file_dir.clone());
             }
-            Unit::Noop { .. } => {}
+            Resource::Noop { .. } => {}
         }
     }
 }
