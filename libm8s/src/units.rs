@@ -9,7 +9,7 @@ pub fn run_units(
     units: &IndexMap<String, UnitWithDependencies>,
     units_args: Vec<String>,
     dependencies: bool,
-    kubeconfig: Option<&String>,
+    kubeconfig: Option<String>,
     dry_run: bool,
 ) -> io::Result<()> {
     info!("Running units... units_args = {:?}", units_args);
@@ -44,16 +44,16 @@ pub fn run_units(
         match unit {
             Unit::Noop { noop: _ } => {}
             Unit::Shell { shell } => {
-                run_unit_shell(dry_run, &shell, kubeconfig)?;
+                run_unit_shell(dry_run, &shell, kubeconfig.clone())?;
             }
             Unit::Manifest { manifest } => {
-                run_unit_manifest(dry_run, manifest, kubeconfig)?;
+                run_unit_manifest(dry_run, manifest, kubeconfig.clone())?;
             }
             Unit::HelmRemote { helm_remote } => {
-                run_unit_helm_remote(dry_run, helm_remote, kubeconfig)?;
+                run_unit_helm_remote(dry_run, helm_remote, kubeconfig.clone())?;
             }
             Unit::HelmLocal { helm_local } => {
-                run_unit_helm_local(dry_run, helm_local, kubeconfig)?;
+                run_unit_helm_local(dry_run, helm_local, kubeconfig.clone())?;
             }
             Unit::Group { group } => {
                 let unit_key_group_prefix = format!("{}:", unit_key);
@@ -78,7 +78,7 @@ pub fn run_units(
                     group,
                     units_args_for_group,
                     dependencies,
-                    kubeconfig,
+                    kubeconfig.clone(),
                     dry_run,
                 )?;
             }
@@ -244,7 +244,7 @@ struct HelmRelease {
 fn helm_release_exists(
     name: &str,
     namespace: &str,
-    kubeconfig: Option<&String>,
+    kubeconfig: Option<String>,
 ) -> io::Result<bool> {
     let mut command = std::process::Command::new("helm");
     command
@@ -279,12 +279,12 @@ fn helm_release_exists(
 fn run_unit_helm_local(
     dry_run: bool,
     helm_local: &HelmLocal,
-    kubeconfig: Option<&String>,
+    kubeconfig: Option<String>,
 ) -> Result<(), io::Error> {
     let already_installed = helm_release_exists(
         helm_local.name.as_str(),
         helm_local.namespace.as_str(),
-        kubeconfig,
+        kubeconfig.clone(),
     )?;
 
     let mut args = Vec::<String>::new();
@@ -312,7 +312,7 @@ fn run_unit_helm_local(
             .map(|s| s.as_str())
             .collect::<Vec<&str>>()
             .as_slice(),
-        kubeconfig,
+        kubeconfig.clone(),
         dry_run,
     )?;
     Ok(())
@@ -321,12 +321,12 @@ fn run_unit_helm_local(
 fn run_unit_helm_remote(
     dry_run: bool,
     helm_remote: &HelmRemote,
-    kubeconfig: Option<&String>,
+    kubeconfig: Option<String>,
 ) -> Result<(), io::Error> {
     let already_installed = helm_release_exists(
         helm_remote.name.as_str(),
         helm_remote.namespace.as_str(),
-        kubeconfig,
+        kubeconfig.clone(),
     )?;
 
     let mut args = Vec::<String>::new();
@@ -365,7 +365,7 @@ fn run_unit_helm_remote(
 fn run_unit_manifest(
     dry_run: bool,
     manifest: &Manifest,
-    kubeconfig: Option<&String>,
+    kubeconfig: Option<String>,
 ) -> Result<(), io::Error> {
     crate::utils::run_command_with_piped_stdio(
         "kubectl",
@@ -379,7 +379,7 @@ fn run_unit_manifest(
 fn run_unit_shell(
     dry_run: bool,
     shell: &&Shell,
-    kubeconfig: Option<&String>,
+    kubeconfig: Option<String>,
 ) -> Result<(), io::Error> {
     crate::utils::run_command_with_piped_stdio(
         "bash",

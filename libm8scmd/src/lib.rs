@@ -1,3 +1,5 @@
+use crate::command_up::CommandUp;
+use crate::utils::CommandRunner;
 use clap::{Args, Parser, Subcommand};
 use std::io;
 
@@ -6,7 +8,7 @@ pub mod utils;
 
 #[derive(Parser)]
 #[command(about = "Declarative k8s deployment using Kubectl, Helm and more", long_about = None)]
-struct Cli {
+pub struct Cli {
     #[command(subcommand)]
     command: Command,
 }
@@ -113,35 +115,38 @@ enum Command {
     },
 }
 
-pub fn main_with_args(args: Vec<&str>, logging: bool) -> io::Result<()> {
-    let args = Cli::parse_from(args);
+impl Cli {
+    pub fn main_with_args(args: Vec<&str>, logging: bool) -> io::Result<()> {
+        let args = Cli::parse_from(args);
 
-    match args.command {
-        Command::Up {
-            units_args,
-            global_options,
-            file,
-            directory,
-            kubeconfig,
-            helm_repositories,
-            units,
-            dependencies,
-            dry_run,
-        } => {
-            if logging {
-                utils::init_logging(global_options.verbose);
+        match args.command {
+            Command::Up {
+                units_args,
+                global_options,
+                file,
+                directory,
+                kubeconfig,
+                helm_repositories,
+                units,
+                dependencies,
+                dry_run,
+            } => {
+                if logging {
+                    utils::init_logging(global_options.verbose);
+                }
+                utils::with_directory(directory, || {
+                    let cmd = CommandUp {
+                        units_args,
+                        file: file.clone(),
+                        kubeconfig: kubeconfig.clone(),
+                        helm_repositories,
+                        units,
+                        dependencies,
+                        dry_run,
+                    };
+                    cmd.run()
+                })
             }
-            utils::with_directory(directory, || {
-                command_up::execute_up_command(
-                    units_args,
-                    file.clone(),
-                    kubeconfig.as_ref(),
-                    helm_repositories,
-                    units,
-                    dependencies,
-                    dry_run,
-                )
-            })
         }
     }
 }

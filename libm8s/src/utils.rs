@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 pub(crate) fn run_command_with_piped_stdio(
     program: &str,
     args: &[&str],
-    kubeconfig: Option<&String>,
+    kubeconfig: Option<String>,
     dry_run: bool,
 ) -> io::Result<()> {
     debug!("Running command {} {:?}", program, args);

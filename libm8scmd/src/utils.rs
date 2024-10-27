@@ -31,3 +31,7 @@ pub fn init_logging(verbose: bool) {
     }
     env_logger::init();
 }
+
+pub trait CommandRunner {
+    fn run(&self) -> io::Result<()>;
+}
