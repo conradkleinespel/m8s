@@ -2,7 +2,6 @@ use crate::file_format::{HelmLocal, HelmRemote, Manifest, Shell, Unit, UnitWithD
 use indexmap::{indexmap, IndexMap};
 use log::{debug, info};
 use serde::Deserialize;
-use std::collections::HashSet;
 use std::io;
 
 pub fn run_units(
@@ -14,30 +13,11 @@ pub fn run_units(
 ) -> io::Result<()> {
     info!("Running units... units_args = {:?}", units_args);
 
-    let filtered_units = get_filtered_units(
-        units,
-        units_args
-            .clone()
-            .iter()
-            .map(|ua| {
-                return ua
-                    .splitn(2, ":")
-                    .collect::<Vec<&str>>()
-                    .get(0)
-                    .unwrap()
-                    .to_string();
-            })
-            .collect(),
-        dependencies,
-        &mut HashSet::new(),
-    );
-    info!("{:?}", units);
+    let units_args_part_0 = get_units_args_part_0(&units_args);
+    let filtered_units = get_filtered_units(units, units_args_part_0, dependencies);
     debug!("Units filtered based on config: {:?}", filtered_units);
     let ordered_units = reorder_units_from_dependencies(filtered_units, dependencies);
-    debug!(
-        "Units filtered and re-ordered based on config: {:?}",
-        ordered_units
-    );
+    debug!("Units re-ordered based on config: {:?}", ordered_units);
 
     for (unit_key, UnitWithDependencies { unit, .. }) in ordered_units.iter() {
         debug!("Running unit {} = {:?}", unit_key, unit);
@@ -56,27 +36,9 @@ pub fn run_units(
                 run_unit_helm_local(dry_run, helm_local, kubeconfig.clone())?;
             }
             Unit::Group { group } => {
-                let unit_key_group_prefix = format!("{}:", unit_key);
-                let mut units_args_for_group: Vec<String> = units_args
-                    .iter()
-                    .filter(|ua| ua.starts_with(unit_key_group_prefix.as_str()))
-                    .map(|ua| {
-                        ua.splitn(2, ":")
-                            .collect::<Vec<&str>>()
-                            .get(1)
-                            .unwrap()
-                            .to_string()
-                    })
-                    .collect();
-
-                // When group is wanted without a specific part, run all of it
-                if units_args_for_group.is_empty() {
-                    units_args_for_group = group.keys().map(|k| k.to_string()).collect();
-                }
-
                 run_units(
                     group,
-                    units_args_for_group,
+                    get_units_args_for_group(units_args.clone(), unit_key.clone(), group),
                     dependencies,
                     kubeconfig.clone(),
                     dry_run,
@@ -86,6 +48,121 @@ pub fn run_units(
     }
 
     Ok(())
+}
+
+fn get_units_args_for_group(
+    units_args: Vec<String>,
+    unit_key: String,
+    group: &IndexMap<String, UnitWithDependencies>,
+) -> Vec<String> {
+    let mut units_args_for_group = get_units_args_part_1(&units_args, unit_key.clone());
+
+    // When group is wanted without a specific part, run all of it
+    if units_args_for_group.is_empty() {
+        units_args_for_group = group.keys().map(|k| k.to_string()).collect();
+    }
+
+    units_args_for_group
+}
+
+#[test]
+fn test_get_units_args_for_group_adds_all_units_if_none_passed() {
+    let units = indexmap! {
+        "a".to_string() => UnitWithDependencies {
+            unit: Unit::Noop {
+                noop: "".to_string(),
+            },
+            depends_on: None,
+        },
+        "b".to_string() => UnitWithDependencies {
+            unit: Unit::Group {
+                group: indexmap! {
+                    "c".to_string() => UnitWithDependencies{
+                        unit: Unit::Noop {
+                            noop: "".to_string()
+                        },
+                        depends_on: None
+                    },
+                    "d".to_string() => UnitWithDependencies{
+                        unit: Unit::Noop {
+                            noop: "".to_string()
+                        },
+                        depends_on: None
+                    }
+                }
+            },
+            depends_on: Some(vec!["a".to_string()]),
+        }
+    };
+
+    if let Unit::Group { ref group } = units.get("b").unwrap().unit {
+        assert_eq!(
+            vec!["c".to_string()],
+            get_units_args_for_group(vec!["b:c".to_string()], "b".to_string(), group)
+        );
+        assert_eq!(
+            vec!["c".to_string(), "d".to_string()],
+            get_units_args_for_group(vec!["b".to_string()], "b".to_string(), group)
+        );
+    } else {
+        unreachable!();
+    }
+}
+
+fn get_units_args_part_0(units_args: &Vec<String>) -> Vec<String> {
+    units_args
+        .clone()
+        .iter()
+        .map(|ua| {
+            return ua
+                .splitn(2, ":")
+                .collect::<Vec<&str>>()
+                .get(0)
+                .unwrap()
+                .to_string();
+        })
+        .collect()
+}
+
+#[test]
+fn test_get_units_args_part_0_returns_part_before_colon() {
+    assert_eq!(
+        vec!["a".to_string(), "b".to_string()],
+        get_units_args_part_0(&vec!["a".to_string(), "b:c".to_string()])
+    );
+}
+
+fn get_units_args_part_1(units_args: &Vec<String>, unit_key: String) -> Vec<String> {
+    let unit_key_group_prefix = format!("{}:", unit_key);
+    units_args
+        .iter()
+        .filter(|ua| ua.starts_with(unit_key_group_prefix.as_str()))
+        .map(|ua| {
+            ua.splitn(2, ":")
+                .collect::<Vec<&str>>()
+                .get(1)
+                .unwrap()
+                .to_string()
+        })
+        .collect()
+}
+
+#[test]
+fn test_get_units_args_part_1_returns_part_after_colon_or_nothing() {
+    assert_eq!(
+        vec!["c".to_string()],
+        get_units_args_part_1(
+            &vec!["a".to_string(), "b:c".to_string(), "d:e".to_string()],
+            "b".to_string()
+        )
+    );
+    assert_eq!(
+        Vec::<String>::new(),
+        get_units_args_part_1(
+            &vec!["a".to_string(), "b:c".to_string(), "d:e".to_string()],
+            "a".to_string()
+        )
+    );
 }
 
 fn reorder_units_from_dependencies(
@@ -121,7 +198,6 @@ fn get_filtered_units(
     units: &IndexMap<String, UnitWithDependencies>,
     units_args: Vec<String>,
     dependencies: bool,
-    visited: &mut HashSet<String>,
 ) -> IndexMap<String, UnitWithDependencies> {
     let mut dependencies_by_unit_key = IndexMap::new();
     for (unit_key, unit) in units.iter() {
@@ -135,9 +211,6 @@ fn get_filtered_units(
 
     let mut stack = units_args.clone();
     while let Some(next_unit_to_visit) = stack.pop() {
-        if visited.contains(&next_unit_to_visit) {
-            continue;
-        }
         filtered_units.insert(
             next_unit_to_visit.to_string(),
             units.get(&next_unit_to_visit).unwrap().clone(),
@@ -208,7 +281,7 @@ fn test_get_filtered_units_returns_units_recursively_based_on_dependencies_param
                 depends_on: None,
             },
         },
-        get_filtered_units(&units, vec!["c".to_string()], true, &mut HashSet::new())
+        get_filtered_units(&units, vec!["c".to_string()], true)
     );
 
     assert_eq!(
@@ -220,7 +293,7 @@ fn test_get_filtered_units_returns_units_recursively_based_on_dependencies_param
                 depends_on: Some(vec!["b".to_string()]),
             },
         },
-        get_filtered_units(&units, vec!["c".to_string()], false, &mut HashSet::new())
+        get_filtered_units(&units, vec!["c".to_string()], false)
     );
 }
 
@@ -245,6 +318,7 @@ fn helm_release_exists(
     name: &str,
     namespace: &str,
     kubeconfig: Option<String>,
+    dry_run: bool,
 ) -> io::Result<bool> {
     let mut command = std::process::Command::new("helm");
     command
@@ -256,6 +330,10 @@ fn helm_release_exists(
 
     if let Some(c) = kubeconfig {
         command.env("KUBECONFIG", c.to_string());
+    }
+
+    if dry_run {
+        return Ok(false);
     }
 
     let output = command.output()?;
@@ -285,6 +363,7 @@ fn run_unit_helm_local(
         helm_local.name.as_str(),
         helm_local.namespace.as_str(),
         kubeconfig.clone(),
+        dry_run,
     )?;
 
     let mut args = Vec::<String>::new();
@@ -327,6 +406,7 @@ fn run_unit_helm_remote(
         helm_remote.name.as_str(),
         helm_remote.namespace.as_str(),
         kubeconfig.clone(),
+        dry_run,
     )?;
 
     let mut args = Vec::<String>::new();
