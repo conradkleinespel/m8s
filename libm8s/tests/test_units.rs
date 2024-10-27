@@ -13,6 +13,7 @@ fn test_run_units_goes_through_units_to_run_them() {
         (),
         run_units(
             &config.units,
+            None,
             vec![],
             skip_dependencies,
             kubeconfig,

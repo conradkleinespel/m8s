@@ -66,6 +66,7 @@ impl CommandRunner for CommandUp {
             };
             libm8s::units::run_units(
                 &config.units,
+                None,
                 unit_args,
                 self.dependencies.get_value(),
                 self.kubeconfig.clone(),

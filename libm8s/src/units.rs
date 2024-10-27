@@ -6,12 +6,17 @@ use std::io;
 
 pub fn run_units(
     units: &IndexMap<String, UnitWithDependencies>,
+    units_args_namespace: Option<String>,
     units_args: Vec<String>,
     dependencies: bool,
     kubeconfig: Option<String>,
     dry_run: bool,
 ) -> io::Result<()> {
-    info!("Running units... units_args = {:?}", units_args);
+    info!(
+        "Running units... units_args = {} {:?}",
+        units_args_namespace.clone().unwrap_or("root".to_string()),
+        units_args
+    );
 
     let units_args_part_0 = get_units_args_part_0(&units_args);
     let filtered_units = get_filtered_units(units, units_args_part_0, dependencies);
@@ -38,6 +43,7 @@ pub fn run_units(
             Unit::Group { group } => {
                 run_units(
                     group,
+                    get_group_namespace(units_args_namespace.clone(), unit_key.as_str()),
                     get_units_args_for_group(units_args.clone(), unit_key.clone(), group),
                     dependencies,
                     kubeconfig.clone(),
@@ -48,6 +54,27 @@ pub fn run_units(
     }
 
     Ok(())
+}
+
+fn get_group_namespace(parent_namespace: Option<String>, unit_key: &str) -> Option<String> {
+    if let Some(ref ns) = parent_namespace {
+        Some(format!("{}:{}", ns, unit_key))
+    } else {
+        Some(unit_key.to_string())
+    }
+}
+
+#[test]
+fn test_get_group_namespace_returns_parent_ns_with_unit_key() {
+    assert_eq!(
+        "parent:this-unit",
+        get_group_namespace(Some("parent".to_string()), "this-unit").unwrap()
+    );
+}
+
+#[test]
+fn test_get_group_namespace_returns_unit_key_if_empty_parent() {
+    assert_eq!("this-unit", get_group_namespace(None, "this-unit").unwrap());
 }
 
 fn get_units_args_for_group(
