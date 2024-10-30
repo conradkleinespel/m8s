@@ -241,3 +241,7 @@ resources:
   myNoop:
     noop: ""
 ```
+
+## License
+
+The source code is released under the Apache 2.0 license.
