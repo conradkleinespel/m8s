@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # https://github.com/actions/cache/blob/main/examples.md#rust---cargo
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}-${{ runner.arch }}-binary
+          path: target/release/m8s
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: Linux-X64-binary
+          path: ./binaries-linux-x64
+
+      - name: Download macOS binary
+        uses: actions/download-artifact@v4
+        with:
+          name: macOS-ARM64-binary
+          path: ./binaries-macos-arm64
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -ex
+          
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          
+          gh release create "$TAG_NAME" -t "$TAG_NAME" --generate-notes
+
+          mv ./binaries-linux-x64/m8s ./binaries-linux-x64/m8s-linux-x64
+          gh release upload "$TAG_NAME" ./binaries-linux-x64/m8s-linux-x64
+          
+          mv ./binaries-macos-arm64/m8s ./binaries-macos-arm64/m8s-macos-arm64
+          gh release upload "$TAG_NAME" ./binaries-macos-arm64/m8s-macos-arm64
