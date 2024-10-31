@@ -4,6 +4,16 @@
 
 `m8s`, pronounced "mates", is a tool for declarative k8s deployment using Kubectl, Helm and more.
 
+## Install
+
+Download the latest binary for Linux or macOS here:
+https://github.com/conradkleinespel/m8s/releases/latest
+
+Or run using Docker:
+```shell
+docker run --rm -it ghcr.io/conradkleinespel/m8s up --help
+```
+
 ## Why use `m8s`?
 
 `m8s` is helpful in the following situations :

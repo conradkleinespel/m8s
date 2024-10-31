@@ -1,0 +1,8 @@
+/target
+/libm8s/target
+/libm8scmd/target
+/m8s/target
+/githooks
+/.idea
+/.github
+/.git

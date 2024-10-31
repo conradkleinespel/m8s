@@ -36,7 +36,7 @@ jobs:
           name: ${{ runner.os }}-${{ runner.arch }}-binary
           path: target/release/m8s
 
-  release:
+  release-binary:
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -63,12 +63,38 @@ jobs:
         run: |
           set -ex
           
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          
-          gh release create "$TAG_NAME" -t "$TAG_NAME" --generate-notes
+          gh release create "${{ github.ref_name }}" -t "${{ github.ref_name }}" --generate-notes
 
           mv ./binaries-linux-x64/m8s ./binaries-linux-x64/m8s-linux-x64
-          gh release upload "$TAG_NAME" ./binaries-linux-x64/m8s-linux-x64
+          gh release upload "${{ github.ref_name }}" ./binaries-linux-x64/m8s-linux-x64
           
           mv ./binaries-macos-arm64/m8s ./binaries-macos-arm64/m8s-macos-arm64
-          gh release upload "$TAG_NAME" ./binaries-macos-arm64/m8s-macos-arm64
+          gh release upload "${{ github.ref_name }}" ./binaries-macos-arm64/m8s-macos-arm64
+
+  release-docker:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
