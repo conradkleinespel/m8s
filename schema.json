@@ -1,0 +1,224 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Config",
+  "type": "object",
+  "required": [
+    "resources"
+  ],
+  "properties": {
+    "helm": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Helm"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ResourceWithDepdencies"
+      }
+    }
+  },
+  "definitions": {
+    "Helm": {
+      "type": "object",
+      "properties": {
+        "repositories": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/HelmRepository"
+          }
+        }
+      }
+    },
+    "HelmLocal": {
+      "type": "object",
+      "required": [
+        "chartPath",
+        "name",
+        "namespace"
+      ],
+      "properties": {
+        "chartPath": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "values": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "HelmRemote": {
+      "type": "object",
+      "required": [
+        "chartName",
+        "chartVersion",
+        "name",
+        "namespace"
+      ],
+      "properties": {
+        "chartName": {
+          "type": "string"
+        },
+        "chartVersion": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "values": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "HelmRepository": {
+      "type": "object",
+      "required": [
+        "name",
+        "url"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      }
+    },
+    "Manifest": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "ResourceWithDepdencies": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "shell"
+          ],
+          "properties": {
+            "shell": {
+              "$ref": "#/definitions/Shell"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "manifest"
+          ],
+          "properties": {
+            "manifest": {
+              "$ref": "#/definitions/Manifest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "helmRemote"
+          ],
+          "properties": {
+            "helmRemote": {
+              "$ref": "#/definitions/HelmRemote"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "helmLocal"
+          ],
+          "properties": {
+            "helmLocal": {
+              "$ref": "#/definitions/HelmLocal"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "group"
+          ],
+          "properties": {
+            "group": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/definitions/ResourceWithDepdencies"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "noop"
+          ],
+          "properties": {
+            "noop": {
+              "type": "string"
+            }
+          }
+        }
+      ],
+      "properties": {
+        "dependsOn": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "Shell": {
+      "type": "object",
+      "required": [
+        "input"
+      ],
+      "properties": {
+        "input": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

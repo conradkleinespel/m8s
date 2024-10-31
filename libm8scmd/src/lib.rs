@@ -1,8 +1,10 @@
+use crate::command_json_schema::CommandJsonSchema;
 use crate::command_up::CommandUp;
 use crate::utils::CommandRunner;
 use clap::{Args, Parser, Subcommand};
 use std::io;
 
+mod command_json_schema;
 mod command_up;
 pub mod utils;
 
@@ -113,6 +115,11 @@ enum Command {
         #[clap(flatten)]
         global_options: GlobalConfigArgs,
     },
+    /// Show the JSON schema for the config file
+    JsonSchema {
+        #[clap(flatten)]
+        global_options: GlobalConfigArgs,
+    },
 }
 
 impl Cli {
@@ -140,12 +147,19 @@ impl Cli {
                         file: file.clone(),
                         kubeconfig: kubeconfig.clone(),
                         helm_repositories,
-                        resources: resources,
+                        resources,
                         dependencies,
                         dry_run,
                     };
                     cmd.run()
                 })
+            }
+            Command::JsonSchema { global_options } => {
+                if logging {
+                    utils::init_logging(global_options.verbose);
+                }
+                let cmd = CommandJsonSchema {};
+                cmd.run()
             }
         }
     }

@@ -1,29 +1,30 @@
 use indexmap::{indexmap, IndexMap};
+use schemars::JsonSchema;
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::{fs, io};
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub helm: Option<Helm>,
     pub resources: IndexMap<String, ResourceWithDepdencies>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Helm {
     pub repositories: Option<Vec<HelmRepository>>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct HelmRepository {
     pub name: String,
     pub url: String,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceWithDepdencies {
     #[serde(flatten)]
@@ -31,7 +32,7 @@ pub struct ResourceWithDepdencies {
     pub depends_on: Option<Vec<String>>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(untagged)]
 #[serde(rename_all = "camelCase")]
 pub enum Resource {
@@ -54,19 +55,19 @@ pub enum Resource {
     },
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Shell {
     pub input: String,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Manifest {
     pub path: String,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct HelmRemote {
     pub name: String,
@@ -76,13 +77,19 @@ pub struct HelmRemote {
     pub values: Option<Vec<String>>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct HelmLocal {
     pub name: String,
     pub namespace: String,
     pub chart_path: String,
     pub values: Option<Vec<String>>,
+}
+
+pub fn create_json_schema() -> io::Result<String> {
+    let schema = schemars::schema_for!(Config);
+    serde_json::to_string_pretty(&schema)
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
 }
 
 /// Looks for cycles using a depth-first approach
