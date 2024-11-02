@@ -28,13 +28,8 @@ pub fn run_resources(
         "Resources filtered based on config: {:?}",
         filtered_resources
     );
-    let ordered_resources = reorder_resources_from_dependencies(filtered_resources, dependencies);
-    debug!(
-        "Resources re-ordered based on config: {:?}",
-        ordered_resources
-    );
 
-    for (resource_key, ResourceWithDepdencies { resource, .. }) in ordered_resources.iter() {
+    for (resource_key, ResourceWithDepdencies { resource, .. }) in filtered_resources.iter() {
         debug!("Running resource {} = {:?}", resource_key, resource);
         match resource {
             Resource::Noop { noop: _ } => {}
@@ -212,7 +207,6 @@ fn test_get_resources_args_part_1_returns_part_after_colon_or_nothing() {
 
 fn reorder_resources_from_dependencies(
     resources: IndexMap<String, ResourceWithDepdencies>,
-    dependencies: bool,
 ) -> IndexMap<String, ResourceWithDepdencies> {
     let mut output = IndexMap::new();
     while has_pending_resources(
@@ -220,19 +214,17 @@ fn reorder_resources_from_dependencies(
         output.keys().collect::<Vec<&String>>().as_slice(),
     ) {
         for (resource_key, ResourceWithDepdencies { depends_on, .. }) in resources.iter() {
-            if dependencies {
-                let depends_on: Vec<String> = depends_on.clone().unwrap_or(Vec::new());
-                let missing_dependencies = depends_on
-                    .iter()
-                    .filter(|item| !output.keys().collect::<Vec<&String>>().contains(item))
-                    .collect::<Vec<&String>>();
-                if missing_dependencies.len() > 0 {
-                    debug!(
-                        "Skipping resource \"{}\", waiting for dependencies: {:?}",
-                        resource_key, missing_dependencies
-                    );
-                    continue;
-                }
+            let depends_on: Vec<String> = depends_on.clone().unwrap_or(Vec::new());
+            let missing_dependencies = depends_on
+                .iter()
+                .filter(|item| !output.keys().collect::<Vec<&String>>().contains(item))
+                .collect::<Vec<&String>>();
+            if missing_dependencies.len() > 0 {
+                debug!(
+                    "Skipping resource \"{}\", waiting for dependencies: {:?}",
+                    resource_key, missing_dependencies
+                );
+                continue;
             }
 
             output.insert(resource_key.to_string(), resources[resource_key].clone());
@@ -240,6 +232,55 @@ fn reorder_resources_from_dependencies(
     }
 
     output
+}
+
+#[test]
+fn test_reorder_resources_from_dependencies_returns_resources_in_right_order() {
+    let resources = indexmap! {
+        "b".to_string() => ResourceWithDepdencies {
+            resource: Resource::Noop {
+                noop: "".to_string(),
+            },
+            depends_on: Some(vec!["a".to_string()]),
+        },
+        "a".to_string() => ResourceWithDepdencies {
+            resource: Resource::Noop {
+                noop: "".to_string(),
+            },
+            depends_on: None,
+        },
+        "c".to_string() => ResourceWithDepdencies {
+            resource: Resource::Noop {
+                noop: "".to_string(),
+            },
+            depends_on: Some(vec!["b".to_string()]),
+        },
+    };
+
+    assert_eq!(
+        indexmap! {
+            "a".to_string() => ResourceWithDepdencies {
+                resource: Resource::Noop {
+                    noop: "".to_string(),
+                },
+                depends_on: None,
+            },
+            "b".to_string() => ResourceWithDepdencies {
+                resource: Resource::Noop {
+                    noop: "".to_string(),
+                },
+                depends_on: Some(vec!["a".to_string()]),
+            },
+            "c".to_string() => ResourceWithDepdencies {
+                resource: Resource::Noop {
+                    noop: "".to_string(),
+                },
+                depends_on: Some(vec!["b".to_string()]),
+            },
+        }
+        .as_slice(),
+        reorder_resources_from_dependencies(resources).as_slice()
+    );
 }
 
 fn get_filtered_resources(
@@ -276,23 +317,27 @@ fn get_filtered_resources(
         }
     }
 
-    filtered_resources
+    if dependencies {
+        reorder_resources_from_dependencies(filtered_resources)
+    } else {
+        filtered_resources
+    }
 }
 
 #[test]
 fn test_get_filtered_resources_returns_resources_recursively_based_on_dependencies_parameter() {
     let resources = indexmap! {
-        "a".to_string() => ResourceWithDepdencies {
-            resource: Resource::Noop {
-                noop: "".to_string(),
-            },
-            depends_on: None,
-        },
         "b".to_string() => ResourceWithDepdencies {
             resource: Resource::Noop {
                 noop: "".to_string(),
             },
             depends_on: Some(vec!["a".to_string()]),
+        },
+        "a".to_string() => ResourceWithDepdencies {
+            resource: Resource::Noop {
+                noop: "".to_string(),
+            },
+            depends_on: None,
         },
         "c".to_string() => ResourceWithDepdencies {
             resource: Resource::Noop {
@@ -310,11 +355,11 @@ fn test_get_filtered_resources_returns_resources_recursively_based_on_dependenci
 
     assert_eq!(
         indexmap! {
-            "c".to_string() => ResourceWithDepdencies {
+            "a".to_string() => ResourceWithDepdencies {
                 resource: Resource::Noop {
                     noop: "".to_string(),
                 },
-                depends_on: Some(vec!["b".to_string()]),
+                depends_on: None,
             },
             "b".to_string() => ResourceWithDepdencies {
                 resource: Resource::Noop {
@@ -322,14 +367,15 @@ fn test_get_filtered_resources_returns_resources_recursively_based_on_dependenci
                 },
                 depends_on: Some(vec!["a".to_string()]),
             },
-            "a".to_string() => ResourceWithDepdencies {
+            "c".to_string() => ResourceWithDepdencies {
                 resource: Resource::Noop {
                     noop: "".to_string(),
                 },
-                depends_on: None,
+                depends_on: Some(vec!["b".to_string()]),
             },
-        },
-        get_filtered_resources(&resources, vec!["c".to_string()], true)
+        }
+        .as_slice(),
+        get_filtered_resources(&resources, vec!["c".to_string()], true).as_slice()
     );
 
     assert_eq!(
@@ -340,8 +386,9 @@ fn test_get_filtered_resources_returns_resources_recursively_based_on_dependenci
                 },
                 depends_on: Some(vec!["b".to_string()]),
             },
-        },
-        get_filtered_resources(&resources, vec!["c".to_string()], false)
+        }
+        .as_slice(),
+        get_filtered_resources(&resources, vec!["c".to_string()], false).as_slice()
     );
 }
 
