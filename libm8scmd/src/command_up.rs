@@ -17,6 +17,7 @@ pub struct CommandUp {
 impl CommandRunner for CommandUp {
     fn run(&self) -> io::Result<()> {
         if (self.dependencies.dependencies || self.dependencies.no_dependencies)
+            && self.resources.get_value()
             && self.resources_args.len() == 0
         {
             return Err(io::Error::new(
@@ -99,5 +100,61 @@ struct NativeFileReader;
 impl FileReader for NativeFileReader {
     fn read_to_string(&self, file_path: &Path) -> io::Result<String> {
         fs::read_to_string(file_path)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::command_up::CommandUp;
+    use crate::utils::{with_directory, CommandRunner};
+    use crate::{OptionDependencies, OptionHelmRepositories, OptionResources};
+
+    #[test]
+    fn test_command_up_reads_from_m8s_yaml_by_default() {
+        with_directory(Some("tests".to_string()), || {
+            let cmd = CommandUp {
+                resources_args: vec![],
+                file: None,
+                kubeconfig: None,
+                helm_repositories: OptionHelmRepositories {
+                    helm_repositories: false,
+                    no_helm_repositories: true,
+                },
+                resources: OptionResources {
+                    resources: false,
+                    no_resources: true,
+                },
+                dependencies: OptionDependencies {
+                    dependencies: false,
+                    no_dependencies: true,
+                },
+                dry_run: true,
+            };
+            cmd.run()
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn test_command_up_handles_repositories() {
+        let cmd = CommandUp {
+            resources_args: vec![],
+            file: Some("tests/m8s_with_repositories.yaml".to_string()),
+            kubeconfig: None,
+            helm_repositories: OptionHelmRepositories {
+                helm_repositories: true,
+                no_helm_repositories: false,
+            },
+            resources: OptionResources {
+                resources: false,
+                no_resources: true,
+            },
+            dependencies: OptionDependencies {
+                dependencies: false,
+                no_dependencies: true,
+            },
+            dry_run: true,
+        };
+        with_directory(None, || cmd.run()).unwrap();
     }
 }

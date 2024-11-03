@@ -10,3 +10,9 @@ impl CommandRunner for CommandJsonSchema {
         Ok(())
     }
 }
+
+#[test]
+fn test_command_json_schema_always_succeeds() {
+    let cmd = CommandJsonSchema {};
+    cmd.run().unwrap();
+}
