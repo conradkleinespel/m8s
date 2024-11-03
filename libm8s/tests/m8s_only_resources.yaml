@@ -15,7 +15,7 @@ resources:
       namespace: test-namespace
       chartPath: path/to/chart
       values:
-        - values.yaml
+        - values-local.yaml
   foobarHelmLocalNoValues:
     helmLocal:
       name: test-name
@@ -28,7 +28,7 @@ resources:
       chartName: chart/name
       chartVersion: 1.33.7
       values:
-        - values.yaml
+        - values-remote.yaml
   foobarHelmRemoteNoValues:
     helmRemote:
       name: test-name
@@ -37,5 +37,6 @@ resources:
       chartVersion: 1.33.7
   foobarGroup:
     group:
-      foobarGroupNoop:
-        noop: ""
+      subFoobarManifest:
+        manifest:
+          path: sub-manifest.yaml

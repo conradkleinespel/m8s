@@ -1,6 +1,8 @@
 use crate::utils::CommandRunner;
 use crate::{OptionDependencies, OptionHelmRepositories, OptionResources};
-use std::io;
+use libm8s::FileReader;
+use std::path::Path;
+use std::{fs, io};
 
 pub struct CommandUp {
     pub resources_args: Vec<String>,
@@ -34,7 +36,10 @@ impl CommandRunner for CommandUp {
         }
 
         let deployment_file_path = self.file.clone().unwrap_or("m8s.yaml".to_string());
-        let config = libm8s::parse_deployment_file(deployment_file_path.as_str())?;
+        let config = libm8s::parse_deployment_file(
+            NativeFileReader {},
+            &Path::new(deployment_file_path.as_str()),
+        )?;
 
         libm8s::file_format::check_resource_keys_format(&config.resources)?;
         libm8s::file_format::check_invalid_resource_keys(&config.resources)?;
@@ -86,5 +91,13 @@ impl CommandRunner for CommandUp {
         }
 
         Ok(())
+    }
+}
+
+struct NativeFileReader;
+
+impl FileReader for NativeFileReader {
+    fn read_to_string(&self, file_path: &Path) -> io::Result<String> {
+        fs::read_to_string(file_path)
     }
 }

@@ -2,6 +2,7 @@ use indexmap::{indexmap, IndexMap};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use std::collections::HashSet;
+use std::io::Error;
 use std::{fs, io};
 
 #[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
@@ -92,8 +93,11 @@ pub fn create_json_schema() -> io::Result<String> {
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
 }
 
-/// Looks for cycles using a depth-first approach
-/// See: https://en.wikipedia.org/wiki/Depth-first_search#Pseudocode
+#[test]
+fn test_create_json_schema_returns_json_schema() {
+    assert!(create_json_schema().unwrap().contains("\"$schema\":"))
+}
+
 fn analyse_cycles(
     resource_key: &String,
     dependencies_by_resource_key: &IndexMap<String, Vec<String>>,
@@ -180,17 +184,21 @@ pub fn check_dependency_cycles(
             &mut HashSet::new(),
             &mut Vec::new(),
         ) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "Configuration is invalid, dependency cycle for \"{}\": {}",
-                    resource_key,
-                    cycle.join(" -> ")
-                ),
-            ));
+            return Err(create_dependency_cycle_error(resource_key, cycle));
         }
     }
     Ok(())
+}
+
+fn create_dependency_cycle_error(resource_key: &String, cycle: Vec<String>) -> Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!(
+            "Configuration is invalid, dependency cycle for \"{}\": {}",
+            resource_key,
+            cycle.join(" -> ")
+        ),
+    )
 }
 
 fn create_file_not_exists_error(resource_key: &str, path: &str) -> io::Error {
@@ -221,39 +229,28 @@ pub fn check_helm_remote_repositories(
         match resource {
             Resource::HelmRemote { helm_remote } => match helm_remote.chart_name.split_once("/") {
                 None => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!(
-                        "Invalid resource {}, chart name \"{}\" doesn't start with a repository name",
-                        resource_key, helm_remote.chart_name
-                    ),
+                    return Err(create_invalid_helm_chart_name_error(
+                        resource_key,
+                        helm_remote,
                     ))
                 }
-                Some((repository_name,_)) => match helm_repositories {
+                Some((repository_name, _)) => match helm_repositories {
                     None => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            format!(
-                                "Invalid resource {}, repository with name \"{}\" doesn't exist, no repositories configured",
-                                resource_key, repository_name
-                            ),
+                        return Err(create_helm_no_repositories_error(
+                            resource_key,
+                            repository_name,
                         ))
                     }
                     Some(helm_repositories) => {
-                        if helm_repositories
+                        if let None = helm_repositories
                             .iter()
                             .filter(|r| r.name == repository_name)
                             .next()
-                            .is_none()
                         {
-                            return Err(io::Error::new(
-                                io::ErrorKind::InvalidData,
-                                format!(
-                                    "Invalid resource {}, repository with name \"{}\" doesn't exist, valid values are [{}]",
-                                    resource_key,
-                                    repository_name,
-                                    helm_repositories.iter().map(|r| r.name.clone()).collect::<Vec<String>>().join(", ")
-                                ),
+                            return Err(create_helm_repository_not_exists_error(
+                                resource_key,
+                                repository_name,
+                                helm_repositories,
                             ));
                         }
                     }
@@ -263,6 +260,46 @@ pub fn check_helm_remote_repositories(
         }
     }
     Ok(())
+}
+
+fn create_invalid_helm_chart_name_error(resource_key: &String, helm_remote: &HelmRemote) -> Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!(
+            "Invalid resource {}, chart name \"{}\" doesn't start with a repository name",
+            resource_key, helm_remote.chart_name
+        ),
+    )
+}
+
+fn create_helm_no_repositories_error(resource_key: &String, repository_name: &str) -> Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!(
+            "Invalid resource {}, repository with name \"{}\" doesn't exist, no repositories configured",
+            resource_key, repository_name
+        ),
+    )
+}
+
+fn create_helm_repository_not_exists_error(
+    resource_key: &String,
+    repository_name: &str,
+    helm_repositories: &Vec<HelmRepository>,
+) -> Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!(
+            "Invalid resource {}, repository with name \"{}\" doesn't exist, valid values are [{}]",
+            resource_key,
+            repository_name,
+            helm_repositories
+                .iter()
+                .map(|r| r.name.clone())
+                .collect::<Vec<String>>()
+                .join(", ")
+        ),
+    )
 }
 
 pub fn check_files_exist(resources: &IndexMap<String, ResourceWithDepdencies>) -> io::Result<()> {
