@@ -1,0 +1,21 @@
+---
+resources:
+  a:
+    group:
+      b:
+        shell:
+          input: |
+            echo b >> tests/m8s_multiple_depends_nested_test_output
+      d:
+        shell:
+          input: |
+            echo d >> tests/m8s_multiple_depends_nested_test_output
+        dependsOn:
+          - b
+          - c
+      c:
+        shell:
+          input: |
+            echo c >> tests/m8s_multiple_depends_nested_test_output
+        dependsOn:
+          - b

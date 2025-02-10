@@ -54,7 +54,7 @@ pub fn run_resources(
                         resource_key.clone(),
                         group,
                     ),
-                    dependencies,
+                    true,
                     kubeconfig.clone(),
                     dry_run,
                 )?;

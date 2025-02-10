@@ -1,5 +1,8 @@
+use libm8s::file_format::Config;
 use libm8s::file_format::Resource::{Group, HelmLocal, HelmRemote, Manifest};
+use libm8s::resources::run_resources;
 use libm8s::{parse_deployment_file, FileReader};
+use std::fs;
 use std::path::Path;
 
 struct MockFileReader;
@@ -58,4 +61,27 @@ fn test_parse_deployment_file_with_reader_returns_config() {
         },
         _ => panic!("Expected Ressource::Group"),
     }
+}
+
+#[test]
+fn test_multiple_depends_nested_activates_dependency_check_on_groups() {
+    let test_file_yaml = include_str!("m8s_multiple_depends_nested.yaml");
+    let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
+
+    if fs::exists("tests/m8s_multiple_depends_nested_test_output").unwrap_or(false) {
+        fs::remove_file("tests/m8s_multiple_depends_nested_test_output").unwrap();
+    }
+
+    run_resources(
+        &config.resources,
+        None,
+        vec!["a".to_string()],
+        false,
+        None,
+        false,
+    )
+    .unwrap();
+
+    let output = fs::read_to_string("tests/m8s_multiple_depends_nested_test_output").unwrap();
+    assert_eq!("b\nc\nd\n", output);
 }
