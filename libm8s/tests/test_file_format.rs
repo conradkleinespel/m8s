@@ -52,6 +52,22 @@ fn test_parse_succeeds_with_resources_and_repositories() {
 }
 
 #[test]
+fn test_parse_fails_with_unknown_key_in_resource() {
+    let test_file_yaml = include_str!("m8s_unknown_key_in_resource_throws_error.yaml");
+
+    let config = serde_yaml::from_str::<Config>(test_file_yaml);
+    assert!(config.is_err());
+}
+
+#[test]
+fn test_parse_fails_with_unknown_resource_type() {
+    let test_file_yaml = include_str!("m8s_unknown_resource_type_throws_error.yaml");
+
+    let config = serde_yaml::from_str::<Config>(test_file_yaml);
+    assert!(config.is_err());
+}
+
+#[test]
 fn test_check_dependency_cycles_fails_with_a_single_resource_which_depends_on_itself() {
     let test_file_yaml = include_str!("m8s_cycle_on_self.yaml");
 

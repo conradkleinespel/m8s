@@ -1,0 +1,7 @@
+---
+resources:
+  foobar:
+    group:
+      myFirstItem:
+        noop: ""
+        unknownKeyInResourceNotAllowed: ""

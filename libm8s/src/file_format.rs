@@ -7,6 +7,7 @@ use std::{fs, io};
 
 #[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     pub helm: Option<Helm>,
     pub resources: IndexMap<String, ResourceWithDepdencies>,
@@ -14,12 +15,14 @@ pub struct Config {
 
 #[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct Helm {
     pub repositories: Option<Vec<HelmRepository>>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct HelmRepository {
     pub name: String,
     pub url: String,
@@ -36,6 +39,7 @@ pub struct ResourceWithDepdencies {
 #[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(untagged)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub enum Resource {
     #[serde(rename_all = "camelCase")]
     Shell { shell: Shell },
@@ -58,18 +62,21 @@ pub enum Resource {
 
 #[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct Shell {
     pub input: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct Manifest {
     pub path: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct HelmRemote {
     pub name: String,
     pub namespace: String,
@@ -80,6 +87,7 @@ pub struct HelmRemote {
 
 #[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct HelmLocal {
     pub name: String,
     pub namespace: String,
