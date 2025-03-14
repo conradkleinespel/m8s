@@ -1,5 +1,5 @@
 use crate::file_format::{
-    HelmLocal, HelmRemote, Manifest, Resource, ResourceWithDepdencies, Shell,
+    HelmLocal, HelmRemote, Manifest, Resource, ResourceWithDependencies, Shell,
 };
 use indexmap::{indexmap, IndexMap};
 use log::{debug, info};
@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::io;
 
 pub fn run_resources(
-    resources: &IndexMap<String, ResourceWithDepdencies>,
+    resources: &IndexMap<String, ResourceWithDependencies>,
     resources_args_namespace: Option<String>,
     resources_args: Vec<String>,
     dependencies: bool,
@@ -29,7 +29,7 @@ pub fn run_resources(
         filtered_resources
     );
 
-    for (resource_key, ResourceWithDepdencies { resource, .. }) in filtered_resources.iter() {
+    for (resource_key, ResourceWithDependencies { resource, .. }) in filtered_resources.iter() {
         debug!("Running resource {} = {:?}", resource_key, resource);
         match resource {
             Resource::Noop { noop: _ } => {}
@@ -92,7 +92,7 @@ fn test_get_group_namespace_returns_resource_key_if_empty_parent() {
 fn get_resources_args_for_group(
     resources_args: Vec<String>,
     resource_key: String,
-    group: &IndexMap<String, ResourceWithDepdencies>,
+    group: &IndexMap<String, ResourceWithDependencies>,
 ) -> Vec<String> {
     let mut resources_args_for_group =
         get_resources_args_part_1(&resources_args, resource_key.clone());
@@ -108,22 +108,22 @@ fn get_resources_args_for_group(
 #[test]
 fn test_get_resources_args_for_group_adds_all_resources_if_none_passed() {
     let resources = indexmap! {
-        "a".to_string() => ResourceWithDepdencies {
+        "a".to_string() => ResourceWithDependencies {
             resource: Resource::Noop {
                 noop: "".to_string(),
             },
             depends_on: None,
         },
-        "b".to_string() => ResourceWithDepdencies {
+        "b".to_string() => ResourceWithDependencies {
             resource: Resource::Group {
                 group: indexmap! {
-                    "c".to_string() => ResourceWithDepdencies{
+                    "c".to_string() => ResourceWithDependencies{
                         resource: Resource::Noop {
                             noop: "".to_string()
                         },
                         depends_on: None
                     },
-                    "d".to_string() => ResourceWithDepdencies{
+                    "d".to_string() => ResourceWithDependencies{
                         resource: Resource::Noop {
                             noop: "".to_string()
                         },
@@ -206,14 +206,14 @@ fn test_get_resources_args_part_1_returns_part_after_colon_or_nothing() {
 }
 
 fn reorder_resources_from_dependencies(
-    resources: IndexMap<String, ResourceWithDepdencies>,
-) -> IndexMap<String, ResourceWithDepdencies> {
+    resources: IndexMap<String, ResourceWithDependencies>,
+) -> IndexMap<String, ResourceWithDependencies> {
     let mut output = IndexMap::new();
     while has_pending_resources(
         &resources,
         output.keys().collect::<Vec<&String>>().as_slice(),
     ) {
-        for (resource_key, ResourceWithDepdencies { depends_on, .. }) in resources.iter() {
+        for (resource_key, ResourceWithDependencies { depends_on, .. }) in resources.iter() {
             let depends_on: Vec<String> = depends_on.clone().unwrap_or(Vec::new());
             let missing_dependencies = depends_on
                 .iter()
@@ -237,19 +237,19 @@ fn reorder_resources_from_dependencies(
 #[test]
 fn test_reorder_resources_from_dependencies_returns_resources_in_right_order() {
     let resources = indexmap! {
-        "b".to_string() => ResourceWithDepdencies {
+        "b".to_string() => ResourceWithDependencies {
             resource: Resource::Noop {
                 noop: "".to_string(),
             },
             depends_on: Some(vec!["a".to_string()]),
         },
-        "a".to_string() => ResourceWithDepdencies {
+        "a".to_string() => ResourceWithDependencies {
             resource: Resource::Noop {
                 noop: "".to_string(),
             },
             depends_on: None,
         },
-        "c".to_string() => ResourceWithDepdencies {
+        "c".to_string() => ResourceWithDependencies {
             resource: Resource::Noop {
                 noop: "".to_string(),
             },
@@ -259,19 +259,19 @@ fn test_reorder_resources_from_dependencies_returns_resources_in_right_order() {
 
     assert_eq!(
         indexmap! {
-            "a".to_string() => ResourceWithDepdencies {
+            "a".to_string() => ResourceWithDependencies {
                 resource: Resource::Noop {
                     noop: "".to_string(),
                 },
                 depends_on: None,
             },
-            "b".to_string() => ResourceWithDepdencies {
+            "b".to_string() => ResourceWithDependencies {
                 resource: Resource::Noop {
                     noop: "".to_string(),
                 },
                 depends_on: Some(vec!["a".to_string()]),
             },
-            "c".to_string() => ResourceWithDepdencies {
+            "c".to_string() => ResourceWithDependencies {
                 resource: Resource::Noop {
                     noop: "".to_string(),
                 },
@@ -284,10 +284,10 @@ fn test_reorder_resources_from_dependencies_returns_resources_in_right_order() {
 }
 
 fn get_filtered_resources(
-    resources: &IndexMap<String, ResourceWithDepdencies>,
+    resources: &IndexMap<String, ResourceWithDependencies>,
     resources_args: Vec<String>,
     dependencies: bool,
-) -> IndexMap<String, ResourceWithDepdencies> {
+) -> IndexMap<String, ResourceWithDependencies> {
     let mut dependencies_by_resource_key = IndexMap::new();
     for (resource_key, resource) in resources.iter() {
         dependencies_by_resource_key.insert(
@@ -327,25 +327,25 @@ fn get_filtered_resources(
 #[test]
 fn test_get_filtered_resources_returns_resources_recursively_based_on_dependencies_parameter() {
     let resources = indexmap! {
-        "b".to_string() => ResourceWithDepdencies {
+        "b".to_string() => ResourceWithDependencies {
             resource: Resource::Noop {
                 noop: "".to_string(),
             },
             depends_on: Some(vec!["a".to_string()]),
         },
-        "a".to_string() => ResourceWithDepdencies {
+        "a".to_string() => ResourceWithDependencies {
             resource: Resource::Noop {
                 noop: "".to_string(),
             },
             depends_on: None,
         },
-        "c".to_string() => ResourceWithDepdencies {
+        "c".to_string() => ResourceWithDependencies {
             resource: Resource::Noop {
                 noop: "".to_string(),
             },
             depends_on: Some(vec!["b".to_string()]),
         },
-        "d".to_string() => ResourceWithDepdencies {
+        "d".to_string() => ResourceWithDependencies {
             resource: Resource::Noop {
                 noop: "".to_string(),
             },
@@ -355,19 +355,19 @@ fn test_get_filtered_resources_returns_resources_recursively_based_on_dependenci
 
     assert_eq!(
         indexmap! {
-            "a".to_string() => ResourceWithDepdencies {
+            "a".to_string() => ResourceWithDependencies {
                 resource: Resource::Noop {
                     noop: "".to_string(),
                 },
                 depends_on: None,
             },
-            "b".to_string() => ResourceWithDepdencies {
+            "b".to_string() => ResourceWithDependencies {
                 resource: Resource::Noop {
                     noop: "".to_string(),
                 },
                 depends_on: Some(vec!["a".to_string()]),
             },
-            "c".to_string() => ResourceWithDepdencies {
+            "c".to_string() => ResourceWithDependencies {
                 resource: Resource::Noop {
                     noop: "".to_string(),
                 },
@@ -380,7 +380,7 @@ fn test_get_filtered_resources_returns_resources_recursively_based_on_dependenci
 
     assert_eq!(
         indexmap! {
-            "c".to_string() => ResourceWithDepdencies {
+            "c".to_string() => ResourceWithDependencies {
                 resource: Resource::Noop {
                     noop: "".to_string(),
                 },
@@ -393,7 +393,7 @@ fn test_get_filtered_resources_returns_resources_recursively_based_on_dependenci
 }
 
 fn has_pending_resources(
-    resources: &IndexMap<String, ResourceWithDepdencies>,
+    resources: &IndexMap<String, ResourceWithDependencies>,
     resource_keys_done: &[&String],
 ) -> bool {
     let next_resource_not_yet_ran = resources

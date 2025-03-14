@@ -10,7 +10,7 @@ use std::{fs, io};
 #[serde(deny_unknown_fields)]
 pub struct Config {
     pub helm: Option<Helm>,
-    pub resources: IndexMap<String, ResourceWithDepdencies>,
+    pub resources: IndexMap<String, ResourceWithDependencies>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
@@ -30,7 +30,7 @@ pub struct HelmRepository {
 
 #[derive(Debug, Deserialize, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct ResourceWithDepdencies {
+pub struct ResourceWithDependencies {
     #[serde(flatten)]
     pub resource: Resource,
     pub depends_on: Option<Vec<String>>,
@@ -51,7 +51,7 @@ pub enum Resource {
     HelmLocal { helm_local: HelmLocal },
     #[serde(rename_all = "camelCase")]
     Group {
-        group: IndexMap<String, ResourceWithDepdencies>,
+        group: IndexMap<String, ResourceWithDependencies>,
     },
     #[serde(rename_all = "camelCase")]
     Noop {
@@ -175,7 +175,7 @@ fn test_analyse_cycles_returns_ok_when_no_cycle_is_detected() {
 }
 
 pub fn check_dependency_cycles(
-    resources: &IndexMap<String, ResourceWithDepdencies>,
+    resources: &IndexMap<String, ResourceWithDependencies>,
 ) -> io::Result<()> {
     let mut dependencies_by_resource_key = IndexMap::new();
     for (resource_key, resource) in resources.iter() {
@@ -230,10 +230,10 @@ fn create_directory_not_exists_error(resource_key: &str, path: &str) -> io::Erro
 }
 
 pub fn check_helm_remote_repositories(
-    resources: &IndexMap<String, ResourceWithDepdencies>,
+    resources: &IndexMap<String, ResourceWithDependencies>,
     helm_repositories: &Option<Vec<HelmRepository>>,
 ) -> io::Result<()> {
-    for (resource_key, ResourceWithDepdencies { resource, .. }) in resources {
+    for (resource_key, ResourceWithDependencies { resource, .. }) in resources {
         match resource {
             Resource::HelmRemote { helm_remote } => match helm_remote.chart_name.split_once("/") {
                 None => {
@@ -310,8 +310,8 @@ fn create_helm_repository_not_exists_error(
     )
 }
 
-pub fn check_files_exist(resources: &IndexMap<String, ResourceWithDepdencies>) -> io::Result<()> {
-    for (resource_key, ResourceWithDepdencies { resource, .. }) in resources {
+pub fn check_files_exist(resources: &IndexMap<String, ResourceWithDependencies>) -> io::Result<()> {
+    for (resource_key, ResourceWithDependencies { resource, .. }) in resources {
         match resource {
             Resource::Shell { .. } => {}
             Resource::Manifest { manifest, .. } => {
@@ -359,7 +359,7 @@ pub fn check_files_exist(resources: &IndexMap<String, ResourceWithDepdencies>) -
 }
 
 pub fn check_invalid_resource_keys(
-    resources: &IndexMap<String, ResourceWithDepdencies>,
+    resources: &IndexMap<String, ResourceWithDependencies>,
 ) -> io::Result<()> {
     let depends_on_resource_keys_invalid = get_invalid_resource_keys_for_group(resources);
 
@@ -385,7 +385,7 @@ pub fn check_invalid_resource_keys(
 }
 
 fn get_invalid_resource_keys_for_group(
-    resources: &IndexMap<String, ResourceWithDepdencies>,
+    resources: &IndexMap<String, ResourceWithDependencies>,
 ) -> Vec<String> {
     let resource_keys: Vec<String> = resources.keys().map(|k| k.to_string()).collect();
     let depends_on_resource_keys: Vec<String> = resources
@@ -413,7 +413,7 @@ fn get_invalid_resource_keys_for_group(
 }
 
 pub fn check_resource_keys_format(
-    resources: &IndexMap<String, ResourceWithDepdencies>,
+    resources: &IndexMap<String, ResourceWithDependencies>,
 ) -> io::Result<()> {
     for (resource_key, resource) in resources {
         if !is_resource_key_format_valid(resource_key.as_str()) {

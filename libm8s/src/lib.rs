@@ -1,4 +1,4 @@
-use crate::file_format::{Resource, ResourceWithDepdencies};
+use crate::file_format::{Resource, ResourceWithDependencies};
 use file_format::Config;
 use indexmap::IndexMap;
 use log::{debug, info};
@@ -52,10 +52,10 @@ pub fn parse_deployment_file(
 }
 
 fn integrate_deployment_file_dir_into_paths(
-    resources: &mut IndexMap<String, ResourceWithDepdencies>,
+    resources: &mut IndexMap<String, ResourceWithDependencies>,
     deployment_file_dir: PathBuf,
 ) {
-    for (_, ResourceWithDepdencies { resource, .. }) in resources {
+    for (_, ResourceWithDependencies { resource, .. }) in resources {
         match resource {
             Resource::Shell { .. } => {}
             Resource::Manifest { ref mut manifest } => {

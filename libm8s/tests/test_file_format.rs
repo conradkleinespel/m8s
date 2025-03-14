@@ -5,7 +5,7 @@ use libm8s::file_format::Resource::Manifest as ManifestResource;
 use libm8s::file_format::{
     check_dependency_cycles, check_files_exist, check_helm_remote_repositories,
     check_invalid_resource_keys, check_resource_keys_format, Config, HelmLocal, HelmRemote,
-    HelmRepository, Manifest, Resource, ResourceWithDepdencies,
+    HelmRepository, Manifest, Resource, ResourceWithDependencies,
 };
 
 #[test]
@@ -15,7 +15,7 @@ fn test_parse_succeeds_with_only_resources() {
     let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
     assert_eq!(
         config.resources.get("foobarNoop").unwrap(),
-        &ResourceWithDepdencies {
+        &ResourceWithDependencies {
             resource: Resource::Noop {
                 noop: "".to_string()
             },
@@ -151,7 +151,7 @@ fn test_check_helm_remote_repositories_with_no_repositories_passes() {
 #[test]
 fn test_check_helm_remote_repositories_with_valid_repository_passes() {
     let resources = indexmap! {
-        "foobar".to_string() => ResourceWithDepdencies {
+        "foobar".to_string() => ResourceWithDependencies {
             resource: HelmRemoteResource {
                 helm_remote: HelmRemote {
                     name: "my-release-name".to_string(),
@@ -174,7 +174,7 @@ fn test_check_helm_remote_repositories_with_valid_repository_passes() {
 #[test]
 fn test_check_helm_remote_repositories_with_invalid_chart_name_fails() {
     let resources = indexmap! {
-        "foobar".to_string() => ResourceWithDepdencies {
+        "foobar".to_string() => ResourceWithDependencies {
             resource: HelmRemoteResource {
                 helm_remote: HelmRemote {
                     name: "my-release-name".to_string(),
@@ -202,7 +202,7 @@ fn test_check_helm_remote_repositories_with_invalid_chart_name_fails() {
 #[test]
 fn test_check_helm_remote_repositories_with_invalid_repo_in_chart_name_fails() {
     let resources = indexmap! {
-        "foobar".to_string() => ResourceWithDepdencies {
+        "foobar".to_string() => ResourceWithDependencies {
             resource: HelmRemoteResource {
                 helm_remote: HelmRemote {
                     name: "my-release-name".to_string(),
@@ -227,7 +227,7 @@ fn test_check_helm_remote_repositories_with_invalid_repo_in_chart_name_fails() {
 #[test]
 fn test_check_helm_remote_repositories_with_undefined_repository_fails() {
     let resources = indexmap! {
-        "foobar".to_string() => ResourceWithDepdencies {
+        "foobar".to_string() => ResourceWithDependencies {
             resource: HelmRemoteResource {
                 helm_remote: HelmRemote {
                     name: "my-release-name".to_string(),
@@ -256,7 +256,7 @@ fn test_check_files_exist_with_no_files_passes() {
 #[test]
 fn test_check_files_exist_with_valid_manifest_files_passes() {
     let resources = indexmap! {
-        "foobar".to_string() => ResourceWithDepdencies {
+        "foobar".to_string() => ResourceWithDependencies {
             resource: ManifestResource {
                 manifest: Manifest {
                     path: "tests/manifest.yaml".to_string()
@@ -271,7 +271,7 @@ fn test_check_files_exist_with_valid_manifest_files_passes() {
 #[test]
 fn test_check_files_exist_with_invalid_manifest_files_fails() {
     let resources = indexmap! {
-        "foobar".to_string() => ResourceWithDepdencies {
+        "foobar".to_string() => ResourceWithDependencies {
             resource: ManifestResource {
                 manifest: Manifest {
                     path: "invalid-manifest.yaml".to_string()
@@ -289,7 +289,7 @@ fn test_check_files_exist_with_invalid_manifest_files_fails() {
 #[test]
 fn test_check_files_exist_with_valid_helm_remote_files_passes() {
     let resources = indexmap! {
-        "foobar".to_string() => ResourceWithDepdencies {
+        "foobar".to_string() => ResourceWithDependencies {
             resource: HelmRemoteResource {
                 helm_remote: HelmRemote {
                     name: "my-release-name".to_string(),
@@ -310,7 +310,7 @@ fn test_check_files_exist_with_valid_helm_remote_files_passes() {
 #[test]
 fn test_check_files_exist_with_invalid_helm_remote_files_fails() {
     let resources = indexmap! {
-        "foobar".to_string() => ResourceWithDepdencies {
+        "foobar".to_string() => ResourceWithDependencies {
             resource: HelmRemoteResource {
                 helm_remote: HelmRemote {
                     name: "my-release-name".to_string(),
@@ -334,7 +334,7 @@ fn test_check_files_exist_with_invalid_helm_remote_files_fails() {
 #[test]
 fn test_check_files_exist_with_valid_helm_local_files_passes() {
     let resources = indexmap! {
-        "foobar".to_string() => ResourceWithDepdencies {
+        "foobar".to_string() => ResourceWithDependencies {
             resource: HelmLocalResource {
                 helm_local: HelmLocal {
                     name: "my-release-name".to_string(),
@@ -354,7 +354,7 @@ fn test_check_files_exist_with_valid_helm_local_files_passes() {
 #[test]
 fn test_check_files_exist_with_invalid_helm_local_values_fails() {
     let resources = indexmap! {
-        "foobar".to_string() => ResourceWithDepdencies {
+        "foobar".to_string() => ResourceWithDependencies {
             resource: HelmLocalResource {
                 helm_local: HelmLocal {
                     name: "my-release-name".to_string(),
@@ -377,7 +377,7 @@ fn test_check_files_exist_with_invalid_helm_local_values_fails() {
 #[test]
 fn test_check_files_exist_with_invalid_helm_local_chart_path_fails() {
     let resources = indexmap! {
-        "foobar".to_string() => ResourceWithDepdencies {
+        "foobar".to_string() => ResourceWithDependencies {
             resource: HelmLocalResource {
                 helm_local: HelmLocal {
                     name: "my-release-name".to_string(),
