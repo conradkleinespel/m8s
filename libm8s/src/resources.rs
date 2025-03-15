@@ -14,8 +14,6 @@ pub fn run_resources(
     kubeconfig: Option<String>,
     dry_run: bool,
 ) -> io::Result<()> {
-    println!("resource args {:?}", resources_args);
-
     info!(
         "Running resources... resources_args = {} {:?}",
         resources_args_namespace
