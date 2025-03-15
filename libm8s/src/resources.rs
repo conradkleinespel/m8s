@@ -14,6 +14,8 @@ pub fn run_resources(
     kubeconfig: Option<String>,
     dry_run: bool,
 ) -> io::Result<()> {
+    println!("resource args {:?}", resources_args);
+
     info!(
         "Running resources... resources_args = {} {:?}",
         resources_args_namespace
@@ -46,15 +48,27 @@ pub fn run_resources(
                 run_resource_helm_local(dry_run, helm_local, kubeconfig.clone())?;
             }
             Resource::Group { group } => {
+                let group_namespace =
+                    get_group_namespace(resources_args_namespace.clone(), resource_key.as_str());
+
+                // When no resource args are given for a group, it means it was passed from the CLI
+                // and the user means to enable dependency resolution for the resources within this
+                // group, even if --no-dependencies was passed.
+                // In addition, in that specific case, we'll run all the resources in the group.
+                let resource_args_for_group =
+                    get_resources_args_part_1(&resources_args, resource_key.clone());
+                let dependencies = dependencies || resource_args_for_group.len() == 0;
+                let actual_resource_args_for_group = if resource_args_for_group.len() > 0 {
+                    resource_args_for_group
+                } else {
+                    group.keys().map(|s| s.to_string()).collect()
+                };
+
                 run_resources(
                     group,
-                    get_group_namespace(resources_args_namespace.clone(), resource_key.as_str()),
-                    get_resources_args_for_group(
-                        resources_args.clone(),
-                        resource_key.clone(),
-                        group,
-                    ),
-                    true,
+                    group_namespace,
+                    actual_resource_args_for_group,
+                    dependencies,
                     kubeconfig.clone(),
                     dry_run,
                 )?;
@@ -87,66 +101,6 @@ fn test_get_group_namespace_returns_resource_key_if_empty_parent() {
         "this-resource",
         get_group_namespace(None, "this-resource").unwrap()
     );
-}
-
-fn get_resources_args_for_group(
-    resources_args: Vec<String>,
-    resource_key: String,
-    group: &IndexMap<String, ResourceWithDependencies>,
-) -> Vec<String> {
-    let mut resources_args_for_group =
-        get_resources_args_part_1(&resources_args, resource_key.clone());
-
-    // When group is wanted without a specific part, run all of it
-    if resources_args_for_group.is_empty() {
-        resources_args_for_group = group.keys().map(|k| k.to_string()).collect();
-    }
-
-    resources_args_for_group
-}
-
-#[test]
-fn test_get_resources_args_for_group_adds_all_resources_if_none_passed() {
-    let resources = indexmap! {
-        "a".to_string() => ResourceWithDependencies {
-            resource: Resource::Noop {
-                noop: "".to_string(),
-            },
-            depends_on: None,
-        },
-        "b".to_string() => ResourceWithDependencies {
-            resource: Resource::Group {
-                group: indexmap! {
-                    "c".to_string() => ResourceWithDependencies{
-                        resource: Resource::Noop {
-                            noop: "".to_string()
-                        },
-                        depends_on: None
-                    },
-                    "d".to_string() => ResourceWithDependencies{
-                        resource: Resource::Noop {
-                            noop: "".to_string()
-                        },
-                        depends_on: None
-                    }
-                }
-            },
-            depends_on: Some(vec!["a".to_string()]),
-        }
-    };
-
-    if let Resource::Group { ref group } = resources.get("b").unwrap().resource {
-        assert_eq!(
-            vec!["c".to_string()],
-            get_resources_args_for_group(vec!["b:c".to_string()], "b".to_string(), group)
-        );
-        assert_eq!(
-            vec!["c".to_string(), "d".to_string()],
-            get_resources_args_for_group(vec!["b".to_string()], "b".to_string(), group)
-        );
-    } else {
-        unreachable!();
-    }
 }
 
 fn get_resources_args_part_0(resources_args: &Vec<String>) -> Vec<String> {

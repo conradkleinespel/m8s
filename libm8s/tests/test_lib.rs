@@ -64,12 +64,15 @@ fn test_parse_deployment_file_with_reader_returns_config() {
 }
 
 #[test]
-fn test_multiple_depends_nested_activates_dependency_check_on_groups() {
-    let test_file_yaml = include_str!("m8s_multiple_depends_nested.yaml");
+fn test_no_dependencies_enables_from_leaf_group_in_resource_args() {
+    let test_file_yaml = include_str!("m8s_no_dependencies_leaf_group_in_resource_args.yaml");
     let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
 
-    if fs::exists("tests/m8s_multiple_depends_nested_test_output").unwrap_or(false) {
-        fs::remove_file("tests/m8s_multiple_depends_nested_test_output").unwrap();
+    if fs::exists("tests/m8s_no_dependencies_leaf_group_in_resource_args_test_output")
+        .unwrap_or(false)
+    {
+        fs::remove_file("tests/m8s_no_dependencies_leaf_group_in_resource_args_test_output")
+            .unwrap();
     }
 
     run_resources(
@@ -82,6 +85,33 @@ fn test_multiple_depends_nested_activates_dependency_check_on_groups() {
     )
     .unwrap();
 
-    let output = fs::read_to_string("tests/m8s_multiple_depends_nested_test_output").unwrap();
+    let output =
+        fs::read_to_string("tests/m8s_no_dependencies_leaf_group_in_resource_args_test_output")
+            .unwrap();
     assert_eq!("b\nc\nd\n", output);
+}
+
+#[test]
+fn test_no_dependencies_disables_from_leaf_resource_with_adjacent_resources_in_resource_args() {
+    let test_file_yaml = include_str!(
+        "m8s_no_dependencies_leaf_resource_with_adjacent_resources_in_resource_args.yaml"
+    );
+    let config: Config = serde_yaml::from_str(test_file_yaml).unwrap();
+
+    if fs::exists("tests/m8s_no_dependencies_leaf_resource_with_adjacent_resources_in_resource_args_test_output").unwrap_or(false) {
+        fs::remove_file("tests/m8s_no_dependencies_leaf_resource_with_adjacent_resources_in_resource_args_test_output").unwrap();
+    }
+
+    run_resources(
+        &config.resources,
+        None,
+        vec!["a:d".to_string()],
+        false,
+        None,
+        false,
+    )
+    .unwrap();
+
+    let output = fs::read_to_string("tests/m8s_no_dependencies_leaf_resource_with_adjacent_resources_in_resource_args_test_output").unwrap();
+    assert_eq!("d\n", output);
 }
