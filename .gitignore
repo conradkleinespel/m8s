@@ -2,3 +2,4 @@
 /m8s/target/
 /libm8s/target/
 *_test_output
+/.idea/
